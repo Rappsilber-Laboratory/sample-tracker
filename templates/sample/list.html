@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Samples — Sample Tracker{% endblock %}
+{% block content %}
+<h2>Samples</h2>
+<p><a href="{{ url_for('sample_create') }}" role="button">New Sample</a></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Experiment</th>
+      <th>Project</th>
+      <th>Type</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for sample in samples %}
+    <tr>
+      <td>{{ sample.name }}</td>
+      <td>{{ sample.experiment.name }}</td>
+      <td>{{ sample.experiment.project.name }}</td>
+      <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
+      <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No samples found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

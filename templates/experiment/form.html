@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}{{ 'Edit' if experiment else 'New' }} Experiment — Sample Tracker{% endblock %}
+{% block content %}
+<h2>{{ 'Edit' if experiment else 'New' }} Experiment</h2>
+<form method="post">
+  {{ form.hidden_tag() }}
+  <p>{{ render_field(form.project_id) }}</p>
+  <p>{{ render_field(form.name) }}</p>
+  <p>{{ render_field(form.description) }}</p>
+  <p>{{ render_field(form.contact_person) }}</p>
+  <button type="submit">Save</button>
+  {% if experiment %}
+    <a href="{{ url_for('experiment_detail', id=experiment.id) }}">Cancel</a>
+  {% else %}
+    <a href="{{ url_for('experiment_list') }}">Cancel</a>
+  {% endif %}
+</form>
+{% endblock %}

@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}{{ 'Edit' if sample else 'New' }} Sample — Sample Tracker{% endblock %}
+{% block content %}
+<h2>{{ 'Edit' if sample else 'New' }} Sample</h2>
+<form method="post">
+  {{ form.hidden_tag() }}
+
+  <fieldset>
+    <legend>Basic Info</legend>
+    <p>{{ render_field(form.experiment_id) }}</p>
+    <p>{{ render_field(form.name) }}</p>
+    <p>{{ render_field(form.comment) }}</p>
+    <p>{{ render_field(form.file_name_root) }}</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Organism</legend>
+    <p>{{ render_field(form.disease) }}</p>
+    <p>{{ render_field(form.phenotype) }}</p>
+    <p>{{ render_field(form.tissue) }}</p>
+    <p>{{ render_field(form.organism_age) }}</p>
+    <p>{{ render_field(form.organism_age_unit) }}</p>
+    <p>{{ render_field(form.organism_sex) }}</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Sample Preparation</legend>
+    <p>{{ render_field(form.isotope_labeling_channel) }}</p>
+    <p>{{ render_field(form.chemical_labelling) }}</p>
+    <p>{{ render_field(form.enrichment_process) }}</p>
+    <p>{{ render_field(form.replicate) }}</p>
+    <p>{{ render_field(form.synthetic_peptide) }}</p>
+    <p>{{ render_field(form.digestion) }}</p>
+    <p>{{ render_field(form.protein_isolation_or_fractionation) }}</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Quantitation</legend>
+    <p>{{ render_field(form.quantitation) }}</p>
+    <p>{{ render_field(form.quantitation_scheme) }}</p>
+    <p>{{ render_field(form.quantitation_method) }}</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Sample Type</legend>
+    <p>{{ render_field(form.crosslinked_sample) }}</p>
+  </fieldset>
+
+  <fieldset id="crosslink-fields">
+    <legend>Crosslink Details</legend>
+    <p>{{ render_field(form.crosslinker) }}</p>
+    <p>{{ render_field(form.crosslinking_type) }}</p>
+    <p>{{ render_field(form.protein_or_cell_concentration) }}</p>
+    <p>{{ render_field(form.protein_or_cell_concentration_unit) }}</p>
+    <p>{{ render_field(form.crosslinker_or_compound_concentration) }}</p>
+    <p>{{ render_field(form.crosslinker_or_compound_concentration_unit) }}</p>
+    <p>{{ render_field(form.organic_solvent_concentration) }}</p>
+    <p>{{ render_field(form.organic_solvent_concentration_unit) }}</p>
+    <p>{{ render_field(form.reaction_temperature_in_celsius) }}</p>
+    <p>{{ render_field(form.reaction_time_in_minutes) }}</p>
+    <p>{{ render_field(form.quenching_reagent) }}</p>
+    <p>{{ render_field(form.uv_source) }}</p>
+    <p>{{ render_field(form.uv_time_in_seconds) }}</p>
+    <p>{{ render_field(form.uv_wavelength_in_nanometers) }}</p>
+  </fieldset>
+
+  <fieldset id="identification-fields">
+    <legend>Identification Details</legend>
+    <p>{{ render_field(form.peptide_level_fraction) }}</p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Species</legend>
+    {{ form.species_ids() }}
+  </fieldset>
+
+  <fieldset>
+    <legend>Cell Lines</legend>
+    {{ form.cell_line_ids() }}
+  </fieldset>
+
+  <button type="submit">Save</button>
+  {% if sample %}
+    <a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">Cancel</a>
+  {% else %}
+    <a href="{{ url_for('sample_list') }}">Cancel</a>
+  {% endif %}
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  function toggleSampleFields() {
+    const cb = document.getElementById('crosslinked_sample');
+    const crosslinkFields = document.getElementById('crosslink-fields');
+    const identificationFields = document.getElementById('identification-fields');
+    if (cb.checked) {
+      crosslinkFields.style.display = '';
+      identificationFields.style.display = 'none';
+    } else {
+      crosslinkFields.style.display = 'none';
+      identificationFields.style.display = '';
+    }
+  }
+  document.getElementById('crosslinked_sample').addEventListener('change', toggleSampleFields);
+  toggleSampleFields();
+</script>
+{% endblock %}

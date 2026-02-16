@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Cell Lines — Sample Tracker{% endblock %}
+{% block content %}
+<h2>Cell Lines</h2>
+<p><a href="{{ url_for('cell_line_create') }}" role="button">New Cell Line</a></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Code</th>
+      <th>Species</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for cl in cell_lines %}
+    <tr>
+      <td>{{ cl.cell_line_name }}</td>
+      <td>{{ cl.cell_line_code or '' }}</td>
+      <td>{{ cl.species.species_name if cl.species else '' }}</td>
+      <td><a href="{{ url_for('cell_line_edit', id=cl.id) }}">Edit</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">No cell lines found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

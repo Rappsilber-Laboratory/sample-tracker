@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Experiments — Sample Tracker{% endblock %}
+{% block content %}
+<h2>Experiments</h2>
+<p><a href="{{ url_for('experiment_create') }}" role="button">New Experiment</a></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Project</th>
+      <th>Contact</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for experiment in experiments %}
+    <tr>
+      <td><a href="{{ url_for('experiment_detail', id=experiment.id) }}">{{ experiment.name }}</a></td>
+      <td><a href="{{ url_for('project_detail', id=experiment.project.id) }}">{{ experiment.project.name }}</a></td>
+      <td>{{ experiment.contact_person or '' }}</td>
+      <td><a href="{{ url_for('experiment_edit', id=experiment.id) }}">Edit</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">No experiments found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

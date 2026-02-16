@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Projects — Sample Tracker{% endblock %}
+{% block content %}
+<h2>Projects</h2>
+<p>
+  <a href="{{ url_for('project_create') }}" role="button">New Project</a>
+  {% if show_archived %}
+    <a href="{{ url_for('project_list') }}">Hide archived</a>
+  {% else %}
+    <a href="{{ url_for('project_list', show_archived=1) }}">Show archived</a>
+  {% endif %}
+</p>
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Name</th>
+      <th>Contact</th>
+      <th>Status</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for project in projects %}
+    <tr>
+      <td>{{ project.code }}</td>
+      <td><a href="{{ url_for('project_detail', id=project.id) }}">{{ project.name }}</a></td>
+      <td>{{ project.contact_person or '' }}</td>
+      <td>{{ 'Active' if project.active else 'Archived' }}</td>
+      <td><a href="{{ url_for('project_edit', id=project.id) }}">Edit</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No projects found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

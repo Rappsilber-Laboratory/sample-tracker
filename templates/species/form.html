@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}{{ 'Edit' if species else 'New' }} Species — Sample Tracker{% endblock %}
+{% block content %}
+<h2>{{ 'Edit' if species else 'New' }} Species</h2>
+<form method="post">
+  {{ form.hidden_tag() }}
+  <p>{{ render_field(form.species_name) }}</p>
+  <p>{{ render_field(form.species_taxon) }}</p>
+  <button type="submit">Save</button>
+  <a href="{{ url_for('species_list') }}">Cancel</a>
+</form>
+{% endblock %}

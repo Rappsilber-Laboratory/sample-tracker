@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}{{ 'Edit' if cell_line else 'New' }} Cell Line — Sample Tracker{% endblock %}
+{% block content %}
+<h2>{{ 'Edit' if cell_line else 'New' }} Cell Line</h2>
+<form method="post">
+  {{ form.hidden_tag() }}
+  <p>{{ render_field(form.cell_line_name) }}</p>
+  <p>{{ render_field(form.cell_line_code) }}</p>
+  <p>{{ render_field(form.species_id) }}</p>
+  <button type="submit">Save</button>
+  <a href="{{ url_for('cell_line_list') }}">Cancel</a>
+</form>
+{% endblock %}

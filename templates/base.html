@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Sample Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header>
+    <h1><a href="{{ url_for('index') }}">Sample Tracker</a></h1>
+    <nav>
+      <a href="{{ url_for('project_list') }}">Projects</a>
+      <a href="{{ url_for('experiment_list') }}">Experiments</a>
+      <a href="{{ url_for('sample_list') }}">Samples</a>
+      <a href="{{ url_for('species_list') }}">Species</a>
+      <a href="{{ url_for('cell_line_list') }}">Cell Lines</a>
+    </nav>
+  </header>
+  <main>
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <p class="flash flash-{{ category }}">{{ message }}</p>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <p>Sample Tracker &mdash; Internal Lab Tool</p>
+  </footer>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

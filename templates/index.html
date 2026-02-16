@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Sample Tracker{% endblock %}
+{% block content %}
+<h2>Dashboard</h2>
+<table>
+  <thead>
+    <tr><th>Entity</th><th>Count</th><th></th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Projects</td>
+      <td>{{ counts.projects }}</td>
+      <td><a href="{{ url_for('project_list') }}">View</a></td>
+    </tr>
+    <tr>
+      <td>Experiments</td>
+      <td>{{ counts.experiments }}</td>
+      <td><a href="{{ url_for('experiment_list') }}">View</a></td>
+    </tr>
+    <tr>
+      <td>Samples</td>
+      <td>{{ counts.samples }}</td>
+      <td><a href="{{ url_for('sample_list') }}">View</a></td>
+    </tr>
+    <tr>
+      <td>Species</td>
+      <td>{{ counts.species }}</td>
+      <td><a href="{{ url_for('species_list') }}">View</a></td>
+    </tr>
+    <tr>
+      <td>Cell Lines</td>
+      <td>{{ counts.cell_lines }}</td>
+      <td><a href="{{ url_for('cell_line_list') }}">View</a></td>
+    </tr>
+  </tbody>
+</table>
+{% endblock %}

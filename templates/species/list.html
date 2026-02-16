@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Species — Sample Tracker{% endblock %}
+{% block content %}
+<h2>Species</h2>
+<p><a href="{{ url_for('species_create') }}" role="button">New Species</a></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Taxon</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for sp in species_list %}
+    <tr>
+      <td>{{ sp.species_name }}</td>
+      <td>{{ sp.species_taxon or '' }}</td>
+      <td><a href="{{ url_for('species_edit', id=sp.id) }}">Edit</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="3">No species found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
