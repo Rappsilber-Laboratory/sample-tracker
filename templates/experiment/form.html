@@ -11,9 +11,39 @@
   <p>{{ render_field(form.contact_person) }}</p>
   <button type="submit">Save</button>
   {% if experiment %}
-    <a href="{{ url_for('experiment_detail', id=experiment.id) }}">Cancel</a>
+    <a href="{{ url_for('experiment_list') }}">Back to Experiments</a>
   {% else %}
     <a href="{{ url_for('experiment_list') }}">Cancel</a>
   {% endif %}
 </form>
+
+{% if experiment %}
+<hr>
+<h3>Samples</h3>
+<p><a href="{{ url_for('sample_create', experiment_id=experiment.id) }}">+ New Sample</a></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Type</th>
+      <th>Disease</th>
+      <th>Tissue</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for sample in samples %}
+    <tr>
+      <td>{{ sample.name }}</td>
+      <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
+      <td>{{ sample.disease or '' }}</td>
+      <td>{{ sample.tissue or '' }}</td>
+      <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="5">No samples yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
 {% endblock %}

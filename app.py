@@ -6,6 +6,7 @@ from flask import Flask, flash, redirect, render_template, request, url_for
 from flask_wtf import CSRFProtect
 
 from config import Config
+from fileInfoScript import SpectraAddressBook
 from forms import CellLineForm, ExperimentForm, ProjectForm, SampleForm, SpeciesForm
 from models import (
     CellLine,
@@ -153,6 +154,7 @@ def experiment_create():
 @app.route("/experiments/<int:id>/edit", methods=["GET", "POST"])
 def experiment_edit(id):
     experiment = db.get_or_404(Experiment, id)
+    samples = Sample.query.filter_by(experiment_id=id).order_by(Sample.name).all()
     form = ExperimentForm(obj=experiment)
     form.project_id.choices = _active_project_choices()
     # Ensure current project appears even if archived
@@ -163,8 +165,8 @@ def experiment_edit(id):
         form.populate_obj(experiment)
         db.session.commit()
         flash("Experiment updated.", "success")
-        return redirect(url_for("experiment_detail", id=experiment.id))
-    return render_template("experiment/form.html", form=form, experiment=experiment)
+        return redirect(url_for("experiment_edit", id=experiment.id))
+    return render_template("experiment/form.html", form=form, experiment=experiment, samples=samples)
 
 
 # ---------------------------------------------------------------------------
@@ -272,6 +274,14 @@ def _cell_line_multi_choices():
     ]
 
 
+def _coerce_select_fields(sample):
+    """Convert empty-string values from optional SelectFields to None so they
+    satisfy the DB CHECK constraints (which allow NULL but not empty string)."""
+    for field in ("synthetic_peptide", "quantitation_method", "crosslinking_type"):
+        if getattr(sample, field) == "":
+            setattr(sample, field, None)
+
+
 def _nullify_crosslink_fields(sample):
     """Clear crosslink fields when sample is identification type, and vice versa."""
     crosslink_fields = [
@@ -322,6 +332,7 @@ def sample_create():
         form.populate_obj(sample)
         sample.crosslinked_sample = 1 if is_crosslinked else 0
         sample.quantitation = 1 if form.quantitation.data else 0
+        _coerce_select_fields(sample)
         _nullify_crosslink_fields(sample)
         db.session.add(sample)
         # Many-to-many (after add to avoid autoflush warning)
@@ -360,6 +371,7 @@ def sample_edit(id):
         form.populate_obj(sample)
         sample.crosslinked_sample = 1 if is_crosslinked else 0
         sample.quantitation = 1 if form.quantitation.data else 0
+        _coerce_select_fields(sample)
         # Many-to-many sync
         sample.species_list = Species.query.filter(
             Species.id.in_(form.species_ids.data)
@@ -372,3 +384,20 @@ def sample_edit(id):
         flash("Sample updated.", "success")
         return redirect(url_for("experiment_detail", id=sample.experiment_id))
     return render_template("sample/form.html", form=form, sample=sample)
+
+
+@app.route("/samples/<int:id>/files")
+def sample_files(id):
+    sample = db.get_or_404(Sample, id)
+    files = []
+    error = None
+    path = sample.file_name_root
+    if not path:
+        error = "No file path is set for this sample."
+    else:
+        try:
+            files = [(name, loc, size / 1024 ** 3)
+                     for name, loc, size in SpectraAddressBook(path).collect()]
+        except Exception as e:
+            error = f"Error scanning path: {e}"
+    return render_template("sample/files.html", sample=sample, files=files, error=error)

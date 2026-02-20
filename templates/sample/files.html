@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Files — {{ sample.name }} — Sample Tracker{% endblock %}
+{% block content %}
+<h2>Files for {{ sample.name }}</h2>
+<p><a href="{{ url_for('sample_edit', id=sample.id) }}">Back to Sample</a></p>
+
+<p><strong>Search path:</strong> {{ sample.file_name_root or '(none)' }}</p>
+
+{% if error %}
+  <p>{{ error }}</p>
+{% elif not files %}
+  <p>No matching files found under that path.</p>
+{% else %}
+  <table>
+    <thead>
+      <tr>
+        <th>File Name</th>
+        <th>Location</th>
+        <th>Size (GB)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for name, location, size_gb in files %}
+      <tr>
+        <td>{{ name }}</td>
+        <td>{{ location }}</td>
+        <td>{{ "%.3f" | format(size_gb) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endif %}
+{% endblock %}
