@@ -32,6 +32,11 @@
       <td>{{ counts.cell_lines }}</td>
       <td><a href="{{ url_for('cell_line_list') }}">View</a></td>
     </tr>
+    <tr>
+      <td>Viruses</td>
+      <td>{{ counts.viruses }}</td>
+      <td><a href="{{ url_for('virus_list') }}">View</a></td>
+    </tr>
   </tbody>
 </table>
 {% endblock %}

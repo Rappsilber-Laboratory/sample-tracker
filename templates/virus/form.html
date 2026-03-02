@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}{{ 'Edit' if virus else 'New' }} Virus — Sample Tracker{% endblock %}
+{% block content %}
+<h2>{{ 'Edit' if virus else 'New' }} Virus</h2>
+<form method="post">
+  {{ form.hidden_tag() }}
+  <p>{{ render_field(form.name) }}</p>
+  <p>{{ render_field(form.variant) }}</p>
+  <p>{{ render_field(form.species_id) }}</p>
+  <button type="submit">Save</button>
+  <a href="{{ url_for('virus_list') }}">Cancel</a>
+</form>
+{% endblock %}

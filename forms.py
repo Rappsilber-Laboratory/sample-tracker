@@ -31,15 +31,22 @@ class SpeciesForm(FlaskForm):
     species_taxon = StringField("Species Taxon", validators=[Optional()])
 
 
+class MultiCheckboxField(SelectMultipleField):
+    widget = widgets.ListWidget(prefix_label=False)
+    option_widget = widgets.CheckboxInput()
+
+
+class VirusForm(FlaskForm):
+    name = StringField("Name", validators=[DataRequired()])
+    species_id = SelectField("Species", coerce=int, validators=[Optional()])
+    variant = StringField("Variant", validators=[Optional()])
+
+
 class CellLineForm(FlaskForm):
     cell_line_name = StringField("Cell Line Name", validators=[DataRequired()])
     cell_line_code = StringField("Cell Line Code", validators=[Optional()])
     species_id = SelectField("Species", coerce=int, validators=[Optional()])
-
-
-class MultiCheckboxField(SelectMultipleField):
-    widget = widgets.ListWidget(prefix_label=False)
-    option_widget = widgets.CheckboxInput()
+    virus_ids = MultiCheckboxField("Viruses", coerce=int)
 
 
 class SampleForm(FlaskForm):

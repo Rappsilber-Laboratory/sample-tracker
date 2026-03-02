@@ -3,6 +3,12 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
 
 # Junction tables
+cell_line_virus = db.Table(
+    "cell_line_virus",
+    db.Column("cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True),
+    db.Column("virus_id", db.Integer, db.ForeignKey("virus.id"), primary_key=True),
+)
+
 sample_species = db.Table(
     "sample_species",
     db.Column("sample_id", db.Integer, db.ForeignKey("sample.id"), primary_key=True),
@@ -54,6 +60,17 @@ class Species(db.Model):
     cell_lines = db.relationship("CellLine", back_populates="species")
 
 
+class Virus(db.Model):
+    __tablename__ = "virus"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.Text, nullable=False)
+    species_id = db.Column(db.Integer, db.ForeignKey("species.id"))
+    variant = db.Column(db.Text)
+
+    species = db.relationship("Species", backref="viruses")
+
+
 class CellLine(db.Model):
     __tablename__ = "cell_line"
 
@@ -63,6 +80,7 @@ class CellLine(db.Model):
     species_id = db.Column(db.Integer, db.ForeignKey("species.id"))
 
     species = db.relationship("Species", back_populates="cell_lines")
+    viruses = db.relationship("Virus", secondary=cell_line_virus, backref="cell_lines")
 
 
 class Sample(db.Model):

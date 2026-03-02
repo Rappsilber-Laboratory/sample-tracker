@@ -7,7 +7,7 @@ from flask_wtf import CSRFProtect
 
 from config import Config
 from fileInfoScript import SpectraAddressBook
-from forms import CellLineForm, ExperimentForm, ProjectForm, SampleForm, SpeciesForm
+from forms import CellLineForm, ExperimentForm, ProjectForm, SampleForm, SpeciesForm, VirusForm
 from models import (
     CellLine,
     CrosslinkSample,
@@ -16,6 +16,7 @@ from models import (
     Project,
     Sample,
     Species,
+    Virus,
     db,
 )
 
@@ -52,6 +53,7 @@ def index():
         "samples": db.session.query(Sample).count(),
         "species": db.session.query(Species).count(),
         "cell_lines": db.session.query(CellLine).count(),
+        "viruses": db.session.query(Virus).count(),
     }
     return render_template("index.html", counts=counts)
 
@@ -211,6 +213,10 @@ def _species_choices():
     return [(0, "")] + [(s.id, s.species_name) for s in species]
 
 
+def _virus_multi_choices():
+    return [(v.id, v.name) for v in Virus.query.order_by(Virus.name).all()]
+
+
 @app.route("/cell-lines")
 def cell_line_list():
     cell_lines = CellLine.query.order_by(CellLine.cell_line_name).all()
@@ -221,12 +227,14 @@ def cell_line_list():
 def cell_line_create():
     form = CellLineForm()
     form.species_id.choices = _species_choices()
+    form.virus_ids.choices = _virus_multi_choices()
     if form.validate_on_submit():
         cl = CellLine()
         form.populate_obj(cl)
         if cl.species_id == 0:
             cl.species_id = None
         db.session.add(cl)
+        cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         db.session.commit()
         flash("Cell line created.", "success")
         return redirect(url_for("cell_line_list"))
@@ -238,16 +246,62 @@ def cell_line_edit(id):
     cl = db.get_or_404(CellLine, id)
     form = CellLineForm(obj=cl)
     form.species_id.choices = _species_choices()
+    form.virus_ids.choices = _virus_multi_choices()
     if not cl.species_id:
         form.species_id.data = 0
+    if request.method == "GET":
+        form.virus_ids.data = [v.id for v in cl.viruses]
     if form.validate_on_submit():
         form.populate_obj(cl)
         if cl.species_id == 0:
             cl.species_id = None
+        cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         db.session.commit()
         flash("Cell line updated.", "success")
         return redirect(url_for("cell_line_list"))
     return render_template("cell_line/form.html", form=form, cell_line=cl)
+
+
+# ---------------------------------------------------------------------------
+# Viruses
+# ---------------------------------------------------------------------------
+@app.route("/viruses")
+def virus_list():
+    viruses = Virus.query.order_by(Virus.name).all()
+    return render_template("virus/list.html", viruses=viruses)
+
+
+@app.route("/viruses/new", methods=["GET", "POST"])
+def virus_create():
+    form = VirusForm()
+    form.species_id.choices = _species_choices()
+    if form.validate_on_submit():
+        virus = Virus()
+        form.populate_obj(virus)
+        if virus.species_id == 0:
+            virus.species_id = None
+        db.session.add(virus)
+        db.session.commit()
+        flash("Virus created.", "success")
+        return redirect(url_for("virus_list"))
+    return render_template("virus/form.html", form=form, virus=None)
+
+
+@app.route("/viruses/<int:id>/edit", methods=["GET", "POST"])
+def virus_edit(id):
+    virus = db.get_or_404(Virus, id)
+    form = VirusForm(obj=virus)
+    form.species_id.choices = _species_choices()
+    if not virus.species_id:
+        form.species_id.data = 0
+    if form.validate_on_submit():
+        form.populate_obj(virus)
+        if virus.species_id == 0:
+            virus.species_id = None
+        db.session.commit()
+        flash("Virus updated.", "success")
+        return redirect(url_for("virus_list"))
+    return render_template("virus/form.html", form=form, virus=virus)
 
 
 # ---------------------------------------------------------------------------

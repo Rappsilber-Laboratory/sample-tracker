@@ -1,5 +1,5 @@
 -- Sample Tracker SQLite Schema
--- Based on sampleTracker12.dia UML diagram
+-- Based on sampleTracker13.dia UML diagram
 
 PRAGMA foreign_keys = ON;
 
@@ -75,6 +75,19 @@ CREATE TABLE sample (
 
     -- IdentificationSample columns (used when crosslinked_sample = 0)
     peptide_level_fraction TEXT
+);
+
+CREATE TABLE virus (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    species_id INTEGER REFERENCES species(id),
+    variant TEXT
+);
+
+CREATE TABLE cell_line_virus (
+    cell_line_id INTEGER NOT NULL REFERENCES cell_line(id),
+    virus_id INTEGER NOT NULL REFERENCES virus(id),
+    PRIMARY KEY (cell_line_id, virus_id)
 );
 
 CREATE TABLE sample_species (
