@@ -292,7 +292,7 @@ def virus_edit(id):
     virus = db.get_or_404(Virus, id)
     form = VirusForm(obj=virus)
     form.species_id.choices = _species_choices()
-    if not virus.species_id:
+    if request.method == "GET" and not virus.species_id:
         form.species_id.data = 0
     if form.validate_on_submit():
         form.populate_obj(virus)

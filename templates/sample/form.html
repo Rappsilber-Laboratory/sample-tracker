@@ -13,6 +13,7 @@
     <p>{{ render_field(form.comment) }}</p>
     <p>
       {{ render_field(form.file_name_root) }}
+      <small class="field-hint">File Name Root Formatting: InstrumentInitial_Date_ProjectCode_UserInitials_BatchName</small>
       {% if sample %}
         <a href="{{ url_for('sample_files', id=sample.id) }}">View Files</a>
       {% endif %}

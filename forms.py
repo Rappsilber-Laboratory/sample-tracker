@@ -54,34 +54,36 @@ class SampleForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
     comment = TextAreaField("Comment", validators=[Optional()])
     file_name_root = StringField("File Name Root", validators=[Optional()])
-    disease = StringField("Disease", validators=[Optional()])
-    phenotype = StringField("Phenotype", validators=[Optional()])
+    disease = StringField("Disease", default="N/A", validators=[Optional()])
+    phenotype = StringField("Phenotype", default="N/A", validators=[Optional()])
     isotope_labeling_channel = StringField(
-        "Isotope Labeling Channel", validators=[Optional()]
+        "Isotope Labeling Channel", default="N/A", validators=[Optional()]
     )
-    chemical_labelling = StringField("Chemical Labelling", validators=[Optional()])
-    tissue = StringField("Tissue", validators=[Optional()])
+    chemical_labelling = StringField("Chemical Labelling", default="N/A", validators=[Optional()])
+    tissue = StringField("Tissue", default="N/A", validators=[Optional()])
     organism_age = FloatField("Organism Age", validators=[Optional()])
-    organism_age_unit = StringField("Organism Age Unit", validators=[Optional()])
-    organism_sex = StringField("Organism Sex", validators=[Optional()])
-    enrichment_process = StringField("Enrichment Process", validators=[Optional()])
-    replicate = StringField("Replicate", validators=[Optional()])
+    organism_age_unit = StringField("Organism Age Unit", default="N/A", validators=[Optional()])
+    organism_sex = StringField("Organism Sex", default="N/A", validators=[Optional()])
+    enrichment_process = StringField("Enrichment Process", default="N/A", validators=[Optional()])
+    replicate = StringField("Replicate", default="N/A", validators=[Optional()])
     synthetic_peptide = SelectField(
         "Synthetic Peptide",
+        default="no",
         choices=[("", ""), ("yes", "Yes"), ("no", "No"), ("spiked in", "Spiked In")],
         validators=[Optional()],
     )
-    digestion = StringField("Digestion", validators=[Optional()])
+    digestion = StringField("Digestion", default="N/A", validators=[Optional()])
     protein_isolation_or_fractionation = StringField(
-        "Protein Isolation / Fractionation", validators=[Optional()]
+        "Protein Isolation / Fractionation", default="N/A", validators=[Optional()]
     )
     crosslinked_sample = BooleanField("Crosslinked Sample", default=False)
     quantitation = BooleanField("Quantitation", default=False)
-    quantitation_scheme = StringField("Quantitation Scheme", validators=[Optional()])
+    quantitation_scheme = StringField("Quantitation Scheme", default="N/A", validators=[Optional()])
     quantitation_method = SelectField(
         "Quantitation Method",
+        default="N/A",
         choices=[
-            ("", ""),
+            ("N/A", "N/A"),
             ("LFQ", "LFQ"),
             ("isotope labelled MS1", "Isotope Labelled MS1"),
             ("Isobaric MS2", "Isobaric MS2"),
@@ -90,7 +92,7 @@ class SampleForm(FlaskForm):
     )
 
     # Crosslink fields
-    crosslinker = StringField("Crosslinker", validators=[Optional()])
+    crosslinker = StringField("Crosslinker", default="N/A", validators=[Optional()])
     crosslinking_type = SelectField(
         "Crosslinking Type",
         choices=[
@@ -106,19 +108,19 @@ class SampleForm(FlaskForm):
         "Protein/Cell Concentration", validators=[Optional()]
     )
     protein_or_cell_concentration_unit = StringField(
-        "Protein/Cell Concentration Unit", validators=[Optional()]
+        "Protein/Cell Concentration Unit", default="N/A", validators=[Optional()]
     )
     crosslinker_or_compound_concentration = FloatField(
         "Crosslinker/Compound Concentration", validators=[Optional()]
     )
     crosslinker_or_compound_concentration_unit = StringField(
-        "Crosslinker/Compound Concentration Unit", validators=[Optional()]
+        "Crosslinker/Compound Concentration Unit", default="N/A", validators=[Optional()]
     )
     organic_solvent_concentration = FloatField(
         "Organic Solvent Concentration", validators=[Optional()]
     )
     organic_solvent_concentration_unit = StringField(
-        "Organic Solvent Concentration Unit", validators=[Optional()]
+        "Organic Solvent Concentration Unit", default="N/A", validators=[Optional()]
     )
     reaction_temperature_in_celsius = FloatField(
         "Reaction Temperature (\u00b0C)", validators=[Optional()]
@@ -126,8 +128,8 @@ class SampleForm(FlaskForm):
     reaction_time_in_minutes = FloatField(
         "Reaction Time (min)", validators=[Optional()]
     )
-    quenching_reagent = StringField("Quenching Reagent", validators=[Optional()])
-    uv_source = StringField("UV Source", validators=[Optional()])
+    quenching_reagent = StringField("Quenching Reagent", default="N/A", validators=[Optional()])
+    uv_source = StringField("UV Source", default="N/A", validators=[Optional()])
     uv_time_in_seconds = FloatField("UV Time (s)", validators=[Optional()])
     uv_wavelength_in_nanometers = FloatField(
         "UV Wavelength (nm)", validators=[Optional()]
@@ -135,7 +137,7 @@ class SampleForm(FlaskForm):
 
     # Identification fields
     peptide_level_fraction = StringField(
-        "Peptide Level Fraction", validators=[Optional()]
+        "Peptide Level Fraction", default="N/A", validators=[Optional()]
     )
 
     # Many-to-many
