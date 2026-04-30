@@ -17,6 +17,8 @@
       <a href="{{ url_for('species_list') }}">Species</a>
       <a href="{{ url_for('cell_line_list') }}">Cell Lines</a>
       <a href="{{ url_for('virus_list') }}">Viruses</a>
+      <a href="{{ url_for('file_list') }}">Files</a>
+      <a href="{{ url_for('user_list') }}">Users</a>
     </nav>
   </header>
   <main>
@@ -29,9 +31,6 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
-  <footer>
-    <p>Sample Tracker &mdash; Internal Lab Tool</p>
-  </footer>
   {% block scripts %}{% endblock %}
 </body>
 </html>

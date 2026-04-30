@@ -8,13 +8,14 @@ CREATE TABLE project (
     code TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT,
-    contact_person TEXT,
+    contact_person_initials TEXT,
     active INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE experiment (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_id INTEGER NOT NULL REFERENCES project(id),
+    code TEXT,
     name TEXT NOT NULL,
     description TEXT,
     contact_person TEXT
@@ -74,7 +75,9 @@ CREATE TABLE sample (
     uv_wavelength_in_nanometers REAL,
 
     -- IdentificationSample columns (used when crosslinked_sample = 0)
-    peptide_level_fraction TEXT
+    peptide_level_fraction TEXT,
+
+    code TEXT
 );
 
 CREATE TABLE virus (
@@ -100,4 +103,26 @@ CREATE TABLE sample_cell_line (
     sample_id INTEGER NOT NULL REFERENCES sample(id),
     cell_line_id INTEGER NOT NULL REFERENCES cell_line(id),
     PRIMARY KEY (sample_id, cell_line_id)
+);
+
+CREATE TABLE user (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    initials TEXT
+);
+
+CREATE TABLE file (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sample_id INTEGER REFERENCES sample(id),
+    location TEXT,
+    filename TEXT,
+    size_bytes REAL,
+    instrument_initial TEXT,
+    date TEXT,
+    project_code TEXT,
+    user_initials TEXT,
+    batch_name TEXT,
+    scan_count INTEGER,
+    meta TEXT,
+    sample_code TEXT
 );

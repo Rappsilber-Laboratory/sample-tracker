@@ -31,7 +31,7 @@ class Project(db.Model):
     code = db.Column(db.Text, nullable=False)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
-    contact_person = db.Column(db.Text)
+    contact_person_initials = db.Column(db.Text)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
     experiments = db.relationship("Experiment", back_populates="project")
@@ -42,6 +42,7 @@ class Experiment(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     project_id = db.Column(db.Integer, db.ForeignKey("project.id"), nullable=False)
+    code = db.Column(db.Text)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
     contact_person = db.Column(db.Text)
@@ -130,6 +131,8 @@ class Sample(db.Model):
     # IdentificationSample columns (crosslinked_sample = 0)
     peptide_level_fraction = db.Column(db.Text)
 
+    code = db.Column(db.Text)
+
     # Polymorphic identity
     __mapper_args__ = {
         "polymorphic_on": crosslinked_sample,
@@ -151,3 +154,31 @@ class CrosslinkSample(Sample):
 
 class IdentificationSample(Sample):
     __mapper_args__ = {"polymorphic_identity": 0}
+
+
+class User(db.Model):
+    __tablename__ = "user"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.Text, nullable=False)
+    initials = db.Column(db.Text)
+
+
+class File(db.Model):
+    __tablename__ = "file"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    sample_id = db.Column(db.Integer, db.ForeignKey("sample.id"), nullable=True)
+    location = db.Column(db.Text)
+    filename = db.Column(db.Text)
+    size_bytes = db.Column(db.Float)
+    instrument_initial = db.Column(db.Text)
+    date = db.Column(db.Text)
+    project_code = db.Column(db.Text)
+    user_initials = db.Column(db.Text)
+    batch_name = db.Column(db.Text)
+    scan_count = db.Column(db.Integer)
+    meta = db.Column(db.Text)
+    sample_code = db.Column(db.Text)
+
+    sample = db.relationship("Sample", backref="files")

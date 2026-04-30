@@ -2,3 +2,8 @@ venv
 .idea/
 __pycache__/
 *.pyc
+*.csv
+*.db
+*.db.*
+*.csv.*
+*.sqbpro

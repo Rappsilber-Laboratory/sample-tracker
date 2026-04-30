@@ -2,6 +2,7 @@ from flask_wtf import FlaskForm
 from wtforms import (
     BooleanField,
     FloatField,
+    IntegerField,
     SelectField,
     SelectMultipleField,
     StringField,
@@ -15,12 +16,13 @@ class ProjectForm(FlaskForm):
     code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[Optional()])
-    contact_person = StringField("Contact Person", validators=[Optional()])
+    contact_person_initials = StringField("Contact Person Initials", validators=[Optional()])
     active = BooleanField("Active", default=True)
 
 
 class ExperimentForm(FlaskForm):
     project_id = SelectField("Project", coerce=int, validators=[DataRequired()])
+    code = StringField("Code", validators=[Optional()])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[Optional()])
     contact_person = StringField("Contact Person", validators=[Optional()])
@@ -49,8 +51,14 @@ class CellLineForm(FlaskForm):
     virus_ids = MultiCheckboxField("Viruses", coerce=int)
 
 
+class UserForm(FlaskForm):
+    name = StringField("Name", validators=[DataRequired()])
+    initials = StringField("Initials", validators=[Optional()])
+
+
 class SampleForm(FlaskForm):
     experiment_id = SelectField("Experiment", coerce=int, validators=[DataRequired()])
+    code = StringField("Code", validators=[Optional()])
     name = StringField("Name", validators=[DataRequired()])
     comment = TextAreaField("Comment", validators=[Optional()])
     file_name_root = StringField("File Name Root", validators=[Optional()])
@@ -143,3 +151,17 @@ class SampleForm(FlaskForm):
     # Many-to-many
     species_ids = MultiCheckboxField("Species", coerce=int)
     cell_line_ids = MultiCheckboxField("Cell Lines", coerce=int)
+
+
+class FileForm(FlaskForm):
+    location = StringField("Location", validators=[Optional()])
+    filename = StringField("Filename", validators=[Optional()])
+    size_bytes = FloatField("Size (bytes)", validators=[Optional()])
+    instrument_initial = StringField("Instrument Initial", validators=[Optional()])
+    date = StringField("Date", validators=[Optional()])
+    project_code = StringField("Project Code", validators=[Optional()])
+    user_initials = StringField("User Initials", validators=[Optional()])
+    batch_name = StringField("Batch Name", validators=[Optional()])
+    scan_count = IntegerField("Scan Count", validators=[Optional()])
+    meta = TextAreaField("Meta (JSON)", validators=[Optional()])
+    sample_code = StringField("Sample Code", validators=[Optional()])

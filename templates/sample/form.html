@@ -9,6 +9,7 @@
   <fieldset>
     <legend>Basic Info</legend>
     <p>{{ render_field(form.experiment_id) }}</p>
+    <p>{{ render_field(form.code) }}</p>
     <p>{{ render_field(form.name) }}</p>
     <p>{{ render_field(form.comment) }}</p>
     <p>
@@ -93,6 +94,51 @@
     <a href="{{ url_for('sample_list') }}">Cancel</a>
   {% endif %}
 </form>
+
+{% if sample %}
+<hr>
+<h3>Files</h3>
+<p><a href="{{ url_for('file_create', sample_id=sample.id) }}" role="button">+ Add File Record</a></p>
+{% if sample.files %}
+<table>
+  <thead>
+    <tr>
+      <th>Filename</th>
+      <th>Instrument</th>
+      <th>Date</th>
+      <th>Batch</th>
+      <th>User</th>
+      <th>Size (bytes)</th>
+      <th>Scans</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in sample.files %}
+    <tr>
+      <td>{{ f.filename or '' }}</td>
+      <td>{{ f.instrument_initial or '' }}</td>
+      <td>{{ f.date or '' }}</td>
+      <td>{{ f.batch_name or '' }}</td>
+      <td>{{ f.user_initials or '' }}</td>
+      <td>{{ '%d'|format(f.size_bytes) if f.size_bytes is not none else '' }}</td>
+      <td>{{ f.scan_count or '' }}</td>
+      <td>
+        <a href="{{ url_for('file_edit', id=f.id) }}">Edit</a>
+        &middot;
+        <form method="post" action="{{ url_for('file_delete', id=f.id) }}" style="display:inline">
+          {{ form.hidden_tag() }}
+          <button type="submit" onclick="return confirm('Delete this file record?')">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No file records yet.</p>
+{% endif %}
+{% endif %}
 {% endblock %}
 
 {% block scripts %}

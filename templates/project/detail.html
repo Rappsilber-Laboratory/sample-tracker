@@ -11,8 +11,8 @@
 {% if project.description %}
 <p>{{ project.description }}</p>
 {% endif %}
-{% if project.contact_person %}
-<p><strong>Contact:</strong> {{ project.contact_person }}</p>
+{% if contact_name %}
+<p><strong>Contact:</strong> {{ contact_name }}</p>
 {% endif %}
 <p><strong>Status:</strong> {{ 'Active' if project.active else 'Archived' }}</p>
 

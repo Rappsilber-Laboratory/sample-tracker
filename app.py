@@ -7,15 +7,17 @@ from flask_wtf import CSRFProtect
 
 from config import Config
 from fileInfoScript import SpectraAddressBook
-from forms import CellLineForm, ExperimentForm, ProjectForm, SampleForm, SpeciesForm, VirusForm
+from forms import CellLineForm, ExperimentForm, FileForm, ProjectForm, SampleForm, SpeciesForm, UserForm, VirusForm
 from models import (
     CellLine,
     CrosslinkSample,
     Experiment,
+    File,
     IdentificationSample,
     Project,
     Sample,
     Species,
+    User,
     Virus,
     db,
 )
@@ -54,6 +56,8 @@ def index():
         "species": db.session.query(Species).count(),
         "cell_lines": db.session.query(CellLine).count(),
         "viruses": db.session.query(Virus).count(),
+        "users": db.session.query(User).count(),
+        "files": db.session.query(File).count(),
     }
     return render_template("index.html", counts=counts)
 
@@ -79,8 +83,15 @@ def project_detail(id):
     experiments = (
         Experiment.query.filter_by(project_id=id).order_by(Experiment.name).all()
     )
+    contact_user = (
+        User.query.filter_by(initials=project.contact_person_initials).first()
+        if project.contact_person_initials
+        else None
+    )
+    contact_name = contact_user.name if contact_user else project.contact_person_initials
     return render_template(
-        "project/detail.html", project=project, experiments=experiments
+        "project/detail.html", project=project, experiments=experiments,
+        contact_name=contact_name
     )
 
 
@@ -305,6 +316,40 @@ def virus_edit(id):
 
 
 # ---------------------------------------------------------------------------
+# Users
+# ---------------------------------------------------------------------------
+@app.route("/users")
+def user_list():
+    users = User.query.order_by(User.name).all()
+    return render_template("user/list.html", users=users)
+
+
+@app.route("/users/new", methods=["GET", "POST"])
+def user_create():
+    form = UserForm()
+    if form.validate_on_submit():
+        user = User()
+        form.populate_obj(user)
+        db.session.add(user)
+        db.session.commit()
+        flash("User created.", "success")
+        return redirect(url_for("user_list"))
+    return render_template("user/form.html", form=form, user=None)
+
+
+@app.route("/users/<int:id>/edit", methods=["GET", "POST"])
+def user_edit(id):
+    user = db.get_or_404(User, id)
+    form = UserForm(obj=user)
+    if form.validate_on_submit():
+        form.populate_obj(user)
+        db.session.commit()
+        flash("User updated.", "success")
+        return redirect(url_for("user_list"))
+    return render_template("user/form.html", form=form, user=user)
+
+
+# ---------------------------------------------------------------------------
 # Samples
 # ---------------------------------------------------------------------------
 def _experiment_choices():
@@ -455,3 +500,48 @@ def sample_files(id):
         except Exception as e:
             error = f"Error scanning path: {e}"
     return render_template("sample/files.html", sample=sample, files=files, error=error)
+
+
+# ---------------------------------------------------------------------------
+# Files (DB records)
+# ---------------------------------------------------------------------------
+@app.route("/files")
+def file_list():
+    files = File.query.order_by(File.date.desc(), File.filename).all()
+    return render_template("file/list.html", files=files)
+
+
+@app.route("/samples/<int:sample_id>/db-files/new", methods=["GET", "POST"])
+def file_create(sample_id):
+    sample = db.get_or_404(Sample, sample_id)
+    form = FileForm()
+    if form.validate_on_submit():
+        f = File(sample_id=sample_id)
+        form.populate_obj(f)
+        db.session.add(f)
+        db.session.commit()
+        flash("File record created.", "success")
+        return redirect(url_for("sample_edit", id=sample_id))
+    return render_template("file/form.html", form=form, file=None, sample=sample)
+
+
+@app.route("/files/<int:id>/edit", methods=["GET", "POST"])
+def file_edit(id):
+    f = db.get_or_404(File, id)
+    form = FileForm(obj=f)
+    if form.validate_on_submit():
+        form.populate_obj(f)
+        db.session.commit()
+        flash("File record updated.", "success")
+        return redirect(url_for("sample_edit", id=f.sample_id))
+    return render_template("file/form.html", form=form, file=f, sample=f.sample)
+
+
+@app.route("/files/<int:id>/delete", methods=["POST"])
+def file_delete(id):
+    f = db.get_or_404(File, id)
+    sample_id = f.sample_id
+    db.session.delete(f)
+    db.session.commit()
+    flash("File record deleted.", "success")
+    return redirect(url_for("sample_edit", id=sample_id))
