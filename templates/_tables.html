@@ -53,20 +53,17 @@
 {% endmacro %}
 
 
-{% macro file_table(files, show_sample=true) %}
+{% macro file_table(files) %}
 <table>
   <thead>
     <tr>
-      <th>Filename</th>
-      {% if show_sample %}<th>Sample</th>{% endif %}
+      <th>File</th>
       <th>Project code</th>
       <th>Experiment code</th>
       <th>Sample code</th>
-      <th>Instrument</th>
-      <th>Date</th>
-      <th>Batch</th>
-      <th>User</th>
-      <th>Project (filename)</th>
+      <th>Project</th>
+      <th>Experiment</th>
+      <th>Sample</th>
       <th>Size (GB)</th>
       <th>Scans</th>
       <th></th>
@@ -76,21 +73,18 @@
     {% for f in files %}
     <tr>
       <td><a href="{{ url_for('file_detail', id=f.id) }}">{{ f.filename or f.id }}</a></td>
-      {% if show_sample %}<td>{% if f.sample %}<a href="{{ url_for('sample_detail', id=f.sample_id) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>{% endif %}
       <td>{% if f.sample %}{{ f.sample.experiment.project.code or '' }}{% else %}—{% endif %}</td>
       <td>{% if f.sample %}{{ f.sample.experiment.code or '' }}{% else %}—{% endif %}</td>
       <td>{% if f.sample %}{{ f.sample.code or '' }}{% else %}—{% endif %}</td>
-      <td>{{ f.instrument_initial or '' }}</td>
-      <td>{{ f.date or '' }}</td>
-      <td>{{ f.batch_name or '' }}</td>
-      <td>{{ f.user_initials or '' }}</td>
-      <td>{{ f.project_code or '' }}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('project_detail', id=f.sample.experiment.project_id) }}">{{ f.sample.experiment.project.name }}</a>{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('experiment_detail', id=f.sample.experiment_id) }}">{{ f.sample.experiment.name }}</a>{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('sample_detail', id=f.sample_id) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>
       <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>
       <td>{{ f.scan_count or '' }}</td>
       <td><a href="{{ url_for('file_edit', id=f.id) }}">Edit</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="{{ 13 if show_sample else 12 }}">No file records found.</td></tr>
+    <tr><td colspan="11">No file records found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
