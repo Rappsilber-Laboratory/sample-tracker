@@ -70,3 +70,7 @@ label { font-size: 0.92rem; }
   color: #721c24;
   display: block;
 }
+
+.hl-project    { background-color: #fde2a7; color: #5a3a00; padding: 0 2px; border-radius: 2px; }
+.hl-experiment { background-color: #c6e7c2; color: #1f4d1a; padding: 0 2px; border-radius: 2px; }
+.hl-sample     { background-color: #c8dafc; color: #0d3a8a; padding: 0 2px; border-radius: 2px; }

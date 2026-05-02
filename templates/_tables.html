@@ -57,6 +57,20 @@
 {% endmacro %}
 
 
+{% macro highlight_codes(filename, p_code, e_code, s_code) -%}
+  {%- set name = filename or '' -%}
+  {%- if s_code -%}{%- set name = name|replace(s_code, '\x01s\x02' ~ s_code ~ '\x03') -%}{%- endif -%}
+  {%- if e_code -%}{%- set name = name|replace(e_code, '\x01e\x02' ~ e_code ~ '\x03') -%}{%- endif -%}
+  {%- if p_code -%}{%- set name = name|replace(p_code, '\x01p\x02' ~ p_code ~ '\x03') -%}{%- endif -%}
+  {%- set name = name|e
+        |replace('\x01p\x02', '<span class="hl-project">'|safe)
+        |replace('\x01e\x02', '<span class="hl-experiment">'|safe)
+        |replace('\x01s\x02', '<span class="hl-sample">'|safe)
+        |replace('\x03', '</span>'|safe) -%}
+  {{ name }}
+{%- endmacro %}
+
+
 {% macro file_table(files) %}
 <table>
   <thead>
@@ -76,7 +90,7 @@
   <tbody>
     {% for f in files %}
     <tr>
-      <td><a href="{{ url_for('file_detail', id=f.id) }}">{{ f.filename or f.id }}</a></td>
+      <td><a href="{{ url_for('file_detail', id=f.id) }}">{% if f.sample %}{{ highlight_codes(f.filename or f.id|string, f.sample.experiment.project.code, f.sample.experiment.code, f.sample.code) }}{% else %}{{ f.filename or f.id }}{% endif %}</a></td>
       <td>{% if f.sample %}{{ f.sample.experiment.project.code or '' }}{% else %}—{% endif %}</td>
       <td>{% if f.sample %}{{ f.sample.experiment.code or '' }}{% else %}—{% endif %}</td>
       <td>{% if f.sample %}{{ f.sample.code or '' }}{% else %}—{% endif %}</td>

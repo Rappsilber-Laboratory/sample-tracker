@@ -17,10 +17,14 @@
   {{ '%.2f' | format(total_size_gb) }} GB
 </p>
 
-<h3>Samples</h3>
-<p><a href="{{ url_for('sample_create', experiment_id=experiment.id) }}">New Sample</a></p>
-{{ sample_table(samples, show_experiment=false, show_project=false) }}
+<details>
+  <summary>Samples</summary>
+  <p><a href="{{ url_for('sample_create', experiment_id=experiment.id) }}">New Sample</a></p>
+  {{ sample_table(samples, show_experiment=false, show_project=false) }}
+</details>
 
-<h3>Files</h3>
-{{ file_table(files) }}
+<details>
+  <summary>Files</summary>
+  {{ file_table(files) }}
+</details>
 {% endblock %}
