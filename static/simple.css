@@ -89,10 +89,6 @@ body > header p {
     margin: 1rem auto
 }
 
-main {
-    padding-top: 1.5rem
-}
-
 body > footer {
     color: var(--text-light);
     text-align: center;
@@ -227,7 +223,8 @@ header nav a, header nav a:visited {
     border: var(--border-width) solid var(--border);
     border-radius: var(--standard-border-radius);
     color: var(--text);
-    margin: 0 .5rem 1rem;
+    margin-right: 1rem;
+    margin-bottom: 0.5rem;
     padding: .1rem 1rem;
     text-decoration: none;
     display: inline-block

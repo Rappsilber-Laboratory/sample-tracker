@@ -103,19 +103,19 @@
     }
 
     // --- level name header ---
-    var names = levelNames.filter(function (n) { return n; });
-    if (names.length) {
-      var header = document.createElement("div");
-      header.className = "stw-header";
-      names.forEach(function (name) {
-        var cell = document.createElement("span");
-        cell.className = "stw-header-cell";
-        cell.style.marginRight = "12px";
-        cell.textContent = name;
-        header.appendChild(cell);
-      });
-      el.appendChild(header);
-    }
+    // var names = levelNames.filter(function (n) { return n; });
+    // if (names.length) {
+    //   var header = document.createElement("div");
+    //   header.className = "stw-header";
+    //   names.forEach(function (name) {
+    //     var cell = document.createElement("span");
+    //     cell.className = "stw-header-cell";
+    //     cell.style.marginRight = "12px";
+    //     cell.textContent = name;
+    //     header.appendChild(cell);
+    //   });
+    //   el.appendChild(header);
+    // }
 
     // --- tree wrapper ---
     var wrapper = document.createElement("div");

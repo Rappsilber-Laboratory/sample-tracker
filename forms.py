@@ -166,3 +166,23 @@ class FileForm(FlaskForm):
     scan_count = IntegerField("Scan Count", validators=[Optional()])
     meta_json = TextAreaField("Meta (JSON)", validators=[Optional()])
     sample_code = StringField("Sample Code", validators=[Optional()])
+
+
+def _optional_int(value):
+    if value in (None, "", "None"):
+        return None
+    return int(value)
+
+
+class FileEditForm(FlaskForm):
+    # validate_choice=False: the experiment/sample option lists are populated
+    # client-side from an embedded tree, so any id present in the DB is valid.
+    project_id = SelectField(
+        "Project", coerce=_optional_int, validators=[Optional()], validate_choice=False
+    )
+    experiment_id = SelectField(
+        "Experiment", coerce=_optional_int, validators=[Optional()], validate_choice=False
+    )
+    sample_id = SelectField(
+        "Sample", coerce=_optional_int, validators=[Optional()], validate_choice=False
+    )

@@ -8,6 +8,8 @@
   {% else %}
     <a href="{{ url_for('file_list') }}">Back to Files</a>
   {% endif %}
+  &middot;
+  <a href="{{ url_for('file_edit', id=file.id) }}">Edit association</a>
 </p>
 
 <table>

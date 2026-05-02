@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}Edit File — Sample Tracker{% endblock %}
+{% block content %}
+<h2>Edit File Association</h2>
+<p><a href="{{ url_for('file_detail', id=file.id) }}">Back to file</a></p>
+
+<table>
+  <tbody>
+    <tr><th>Filename</th><td>{{ file.filename or '—' }}</td></tr>
+    <tr><th>Location</th><td>{{ file.location or '—' }}</td></tr>
+    <tr><th>Size</th><td>{{ '%.3f GB'|format(file.size_bytes / 1e9) if file.size_bytes is not none else '—' }}</td></tr>
+    <tr><th>Scans</th><td>{{ file.scan_count or '—' }}</td></tr>
+    <tr><th>Instrument</th><td>{{ file.instrument_initial or '—' }}</td></tr>
+    <tr><th>Date</th><td>{{ file.date or '—' }}</td></tr>
+    <tr><th>Project code (filename)</th><td>{{ file.project_code or '—' }}</td></tr>
+    <tr><th>User initials</th><td>{{ file.user_initials or '—' }}</td></tr>
+    <tr><th>Batch</th><td>{{ file.batch_name or '—' }}</td></tr>
+    <tr><th>Sample code (filename)</th><td>{{ file.sample_code or '—' }}</td></tr>
+    {% if file.meta %}
+    <tr><th>Meta</th><td><pre style="margin:0">{{ file.meta }}</pre></td></tr>
+    {% endif %}
+  </tbody>
+</table>
+
+<form method="post">
+  {{ form.hidden_tag() }}
+  <fieldset>
+    <legend>Associate with</legend>
+    <p>{{ render_field(form.project_id) }}</p>
+    <p>{{ render_field(form.experiment_id) }}</p>
+    <p>{{ render_field(form.sample_id) }}</p>
+  </fieldset>
+  <button type="submit">Save</button>
+  <a href="{{ url_for('file_detail', id=file.id) }}">Cancel</a>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const TREE = {{ tree|tojson }};
+  const projectSel = document.getElementById('project_id');
+  const experimentSel = document.getElementById('experiment_id');
+  const sampleSel = document.getElementById('sample_id');
+
+  function fillSelect(sel, options, selectedValue) {
+    const current = selectedValue != null ? String(selectedValue) : '';
+    sel.innerHTML = '';
+    const blank = document.createElement('option');
+    blank.value = '';
+    blank.textContent = '—';
+    sel.appendChild(blank);
+    for (const opt of options) {
+      const o = document.createElement('option');
+      o.value = String(opt.id);
+      o.textContent = opt.label;
+      if (String(opt.id) === current) o.selected = true;
+      sel.appendChild(o);
+    }
+  }
+
+  function refreshExperiments(selectedExperimentId) {
+    const projectId = projectSel.value;
+    const opts = projectId
+      ? TREE.experiments.filter(e => String(e.project_id) === projectId)
+      : [];
+    fillSelect(experimentSel, opts, selectedExperimentId);
+  }
+
+  function refreshSamples(selectedSampleId) {
+    const experimentId = experimentSel.value;
+    const opts = experimentId
+      ? TREE.samples.filter(s => String(s.experiment_id) === experimentId)
+      : [];
+    fillSelect(sampleSel, opts, selectedSampleId);
+  }
+
+  projectSel.addEventListener('change', () => {
+    refreshExperiments(null);
+    refreshSamples(null);
+  });
+  experimentSel.addEventListener('change', () => {
+    refreshSamples(null);
+  });
+
+  // Initial cascade: respect any pre-selected values from the server.
+  const initialExperiment = experimentSel.value;
+  const initialSample = sampleSel.value;
+  refreshExperiments(initialExperiment);
+  refreshSamples(initialSample);
+</script>
+{% endblock %}

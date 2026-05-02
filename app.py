@@ -8,7 +8,17 @@ from sqlalchemy.orm import joinedload
 
 from config import Config
 from fileInfoScript import SpectraAddressBook
-from forms import CellLineForm, ExperimentForm, FileForm, ProjectForm, SampleForm, SpeciesForm, UserForm, VirusForm
+from forms import (
+    CellLineForm,
+    ExperimentForm,
+    FileEditForm,
+    FileForm,
+    ProjectForm,
+    SampleForm,
+    SpeciesForm,
+    UserForm,
+    VirusForm,
+)
 from models import (
     CellLine,
     CrosslinkSample,
@@ -27,6 +37,25 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 CSRFProtect(app)
+
+
+@app.context_processor
+def inject_nav_counts():
+    try:
+        return {
+            "nav_counts": {
+                "projects": db.session.query(Project).count(),
+                "experiments": db.session.query(Experiment).count(),
+                "samples": db.session.query(Sample).count(),
+                "species": db.session.query(Species).count(),
+                "cell_lines": db.session.query(CellLine).count(),
+                "viruses": db.session.query(Virus).count(),
+                "files": db.session.query(File).count(),
+                "users": db.session.query(User).count(),
+            }
+        }
+    except Exception:
+        return {"nav_counts": {}}
 
 
 # ---------------------------------------------------------------------------
@@ -159,7 +188,7 @@ def project_detail(id):
     )
     files = (
         File.query.join(Sample).join(Experiment)
-        .options(joinedload(File.sample))
+        .options(joinedload(File.sample).joinedload(Sample.experiment).joinedload(Experiment.project))
         .filter(Experiment.project_id == id)
         .order_by(File.date.desc(), File.filename).all()
     )
@@ -236,7 +265,7 @@ def experiment_detail(id):
     samples = Sample.query.filter_by(experiment_id=id).order_by(Sample.name).all()
     files = (
         File.query.join(Sample)
-        .options(joinedload(File.sample))
+        .options(joinedload(File.sample).joinedload(Sample.experiment).joinedload(Experiment.project))
         .filter(Sample.experiment_id == id)
         .order_by(File.date.desc(), File.filename).all()
     )
@@ -638,7 +667,9 @@ def sample_files(id):
 @app.route("/files")
 def file_list():
     files = (
-        File.query.options(joinedload(File.sample))
+        File.query.options(
+            joinedload(File.sample).joinedload(Sample.experiment).joinedload(Experiment.project)
+        )
         .order_by(File.date.desc(), File.filename)
         .all()
     )
@@ -666,6 +697,59 @@ def file_create(sample_id):
 def file_detail(id):
     f = db.get_or_404(File, id)
     return render_template("file/detail.html", file=f)
+
+
+def _file_edit_tree():
+    experiments = Experiment.query.order_by(Experiment.name).all()
+    samples = Sample.query.order_by(Sample.name).all()
+    return {
+        "experiments": [
+            {"id": e.id, "project_id": e.project_id,
+             "label": (f"{e.code} — {e.name}" if e.code else e.name)}
+            for e in experiments
+        ],
+        "samples": [
+            {"id": s.id, "experiment_id": s.experiment_id,
+             "label": (f"{s.code} — {s.name}" if s.code else s.name)}
+            for s in samples
+        ],
+    }
+
+
+@app.route("/files/<int:id>/edit", methods=["GET", "POST"])
+def file_edit(id):
+    f = db.get_or_404(File, id)
+    form = FileEditForm()
+    form.project_id.choices = [("", "—")] + [
+        (p.id, f"{p.code} — {p.name}")
+        for p in Project.query.order_by(Project.name).all()
+    ]
+    # experiment/sample option lists are populated by JS from the embedded tree;
+    # the server-side choices only need to contain the currently-selected value
+    # so WTForms validates the POST.
+    form.experiment_id.choices = [("", "—")]
+    form.sample_id.choices = [("", "—")]
+    if request.method == "GET" and f.sample is not None:
+        e = f.sample.experiment
+        form.experiment_id.choices.append(
+            (e.id, f"{e.code} — {e.name}" if e.code else e.name)
+        )
+        form.sample_id.choices.append(
+            (f.sample.id, f"{f.sample.code} — {f.sample.name}" if f.sample.code else f.sample.name)
+        )
+        form.project_id.data = e.project_id
+        form.experiment_id.data = e.id
+        form.sample_id.data = f.sample.id
+    if form.validate_on_submit():
+        # The server only needs sample_id; project/experiment selects are pure
+        # UX scaffolding handled client-side. Accept whatever sample id the
+        # client posted and let the FK constraint reject anything bogus.
+        posted_sample_id = request.form.get("sample_id") or None
+        f.sample_id = int(posted_sample_id) if posted_sample_id else None
+        db.session.commit()
+        flash("File association updated.", "success")
+        return redirect(url_for("file_detail", id=f.id))
+    return render_template("file/edit.html", form=form, file=f, tree=_file_edit_tree())
 
 
 @app.route("/files/<int:id>/delete", methods=["POST"])

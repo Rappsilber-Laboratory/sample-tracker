@@ -59,13 +59,17 @@
     <tr>
       <th>Filename</th>
       {% if show_sample %}<th>Sample</th>{% endif %}
+      <th>Project code</th>
+      <th>Experiment code</th>
+      <th>Sample code</th>
       <th>Instrument</th>
       <th>Date</th>
       <th>Batch</th>
       <th>User</th>
-      <th>Project</th>
+      <th>Project (filename)</th>
       <th>Size (GB)</th>
       <th>Scans</th>
+      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -73,6 +77,9 @@
     <tr>
       <td><a href="{{ url_for('file_detail', id=f.id) }}">{{ f.filename or f.id }}</a></td>
       {% if show_sample %}<td>{% if f.sample %}<a href="{{ url_for('sample_detail', id=f.sample_id) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>{% endif %}
+      <td>{% if f.sample %}{{ f.sample.experiment.project.code or '' }}{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}{{ f.sample.experiment.code or '' }}{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}{{ f.sample.code or '' }}{% else %}—{% endif %}</td>
       <td>{{ f.instrument_initial or '' }}</td>
       <td>{{ f.date or '' }}</td>
       <td>{{ f.batch_name or '' }}</td>
@@ -80,9 +87,10 @@
       <td>{{ f.project_code or '' }}</td>
       <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>
       <td>{{ f.scan_count or '' }}</td>
+      <td><a href="{{ url_for('file_edit', id=f.id) }}">Edit</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="{{ 9 if show_sample else 8 }}">No file records found.</td></tr>
+    <tr><td colspan="{{ 13 if show_sample else 12 }}">No file records found.</td></tr>
     {% endfor %}
   </tbody>
 </table>

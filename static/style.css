@@ -16,11 +16,24 @@
   }
 }
 
-/* override Simple CSS 3-col grid — collapse to single full-width column */
-body { grid-template-columns: 1fr !important; font-size: 0.92rem; }
+/* full-viewport flex layout: nav pinned on top, <main> is the scroll region */
+html, body { height: 100%; }
+body {
+  grid-template-columns: 1fr !important;  /* override Simple CSS grid */
+  display: flex !important;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.92rem;
+}
 body > * { grid-column: 1 !important; }
-body > header { padding: 0.4rem 1.5rem; text-align: left; }
-main { padding: 0.5rem 1.5rem; }
+body > header { padding: 0.4rem 1.5rem; text-align: left; flex: none; }
+main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-left: 1.5rem;
+}
 h1, h2, h3 { font-size: 1.15em; }
 nav a { font-size: 0.92rem; }
 table { font-size: 0.88rem; }
@@ -29,9 +42,9 @@ label { font-size: 0.92rem; }
 
 #dashboard {
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
   gap: 1.5rem;
-  height: calc(100vh - 90px);
+  height: 100%;
 }
 #stats-panel { flex-shrink: 0; font-size: 0.8rem; }
 #stats-panel table { font-size: 0.8rem; }

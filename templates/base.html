@@ -4,21 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Sample Tracker{% endblock %}</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='simple.min.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='simple.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header>
-    <!-- <h1><a href="{{ url_for('index') }}">Sample Tracker</a></h1> -->
     <nav>
-      <a href="{{ url_for('project_list') }}">Projects</a>
-      <a href="{{ url_for('experiment_list') }}">Experiments</a>
-      <a href="{{ url_for('sample_list') }}">Samples</a>
-      <a href="{{ url_for('species_list') }}">Species</a>
-      <a href="{{ url_for('cell_line_list') }}">Cell Lines</a>
-      <a href="{{ url_for('virus_list') }}">Viruses</a>
-      <a href="{{ url_for('file_list') }}">Files</a>
-      <a href="{{ url_for('user_list') }}">Users</a>
+      <a href="/">Home</a>
+      <a href="{{ url_for('project_list') }}">{{ nav_counts.get('projects', '') }} Projects</a>
+      <a href="{{ url_for('experiment_list') }}">{{ nav_counts.get('experiments', '') }} Experiments</a>
+      <a href="{{ url_for('sample_list') }}">{{ nav_counts.get('samples', '') }} Samples</a>
+      <a href="{{ url_for('species_list') }}">{{ nav_counts.get('species', '') }} Species</a>
+      <a href="{{ url_for('cell_line_list') }}">{{ nav_counts.get('cell_lines', '') }} Cell Lines</a>
+      <a href="{{ url_for('virus_list') }}">{{ nav_counts.get('viruses', '') }} Viruses</a>
+      <a href="{{ url_for('file_list') }}">{{ nav_counts.get('files', '') }} Files</a>
+      <a href="{{ url_for('user_list') }}">{{ nav_counts.get('users', '') }} Users</a>
     </nav>
   </header>
   <main>
