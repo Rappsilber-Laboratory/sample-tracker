@@ -11,6 +11,11 @@
 {% if experiment.code %}<p><strong>Code:</strong> {{ experiment.code }}</p>{% endif %}
 {% if experiment.description %}<p>{{ experiment.description }}</p>{% endif %}
 {% if experiment.contact_person %}<p><strong>Contact:</strong> {{ experiment.contact_person }}</p>{% endif %}
+<p><strong>Summary:</strong>
+  {{ sample_count }} sample{{ '' if sample_count == 1 else 's' }},
+  {{ file_count }} file{{ '' if file_count == 1 else 's' }},
+  {{ '%.2f' | format(total_size_gb) }} GB
+</p>
 
 <h3>Samples</h3>
 <p><a href="{{ url_for('sample_create', experiment_id=experiment.id) }}">New Sample</a></p>

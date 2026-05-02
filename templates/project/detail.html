@@ -12,6 +12,12 @@
 {% endif %}
 <p><strong>Contact:</strong> {{ contact_name }}</p>
 <p><strong>Status:</strong> {{ 'Active' if project.active else 'Archived' }}</p>
+<p><strong>Summary:</strong>
+  {{ experiment_count }} experiment{{ '' if experiment_count == 1 else 's' }},
+  {{ sample_count }} sample{{ '' if sample_count == 1 else 's' }},
+  {{ file_count }} file{{ '' if file_count == 1 else 's' }},
+  {{ '%.2f' | format(total_size_gb) }} GB
+</p>
 
 <h3>Experiments</h3>
 <p><a href="{{ url_for('experiment_create', project_id=project.id) }}">New Experiment</a></p>

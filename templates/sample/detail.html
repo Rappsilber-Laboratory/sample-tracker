@@ -6,6 +6,10 @@
 <p>
   <a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a>
 </p>
+<p><strong>Summary:</strong>
+  {{ file_count }} file{{ '' if file_count == 1 else 's' }},
+  {{ '%.2f' | format(total_size_gb) }} GB
+</p>
 
 <h3>Basic Info</h3>
 <table>

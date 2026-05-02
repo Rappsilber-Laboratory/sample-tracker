@@ -192,9 +192,12 @@ def project_detail(id):
         .filter(Experiment.project_id == id)
         .order_by(File.date.desc(), File.filename).all()
     )
+    total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
     return render_template(
         "project/detail.html", project=project, experiments=experiments,
-        contact_name=contact_name, samples=samples, files=files
+        contact_name=contact_name, samples=samples, files=files,
+        experiment_count=len(experiments), sample_count=len(samples),
+        file_count=len(files), total_size_gb=total_size_gb,
     )
 
 
@@ -269,8 +272,10 @@ def experiment_detail(id):
         .filter(Sample.experiment_id == id)
         .order_by(File.date.desc(), File.filename).all()
     )
+    total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
     return render_template(
-        "experiment/detail.html", experiment=experiment, samples=samples, files=files
+        "experiment/detail.html", experiment=experiment, samples=samples, files=files,
+        sample_count=len(samples), file_count=len(files), total_size_gb=total_size_gb,
     )
 
 
@@ -603,7 +608,11 @@ def sample_create():
 @app.route("/samples/<int:id>")
 def sample_detail(id):
     sample = db.get_or_404(Sample, id)
-    return render_template("sample/detail.html", sample=sample)
+    total_size_gb = sum(f.size_bytes or 0 for f in sample.files) / (1024 ** 3)
+    return render_template(
+        "sample/detail.html", sample=sample,
+        file_count=len(sample.files), total_size_gb=total_size_gb,
+    )
 
 
 @app.route("/samples/<int:id>/edit", methods=["GET", "POST"])
