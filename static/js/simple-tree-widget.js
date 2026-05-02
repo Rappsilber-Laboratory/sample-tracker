@@ -113,7 +113,7 @@
         ".stw-dot { width: 7px; height: 7px; border-radius: 50%; background: #ccc;",
         "           border: 1px solid #aaa; flex-shrink: 0; margin-left: 5px; }",
         ".stw-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: #222; }",
-        ".stw-label.linkable { color: #1a4a9e; cursor: pointer; }",
+        ".stw-label.linkable { color: #1a4a9e; cursor: pointer; text-decoration: none; }",
         ".stw-label.linkable:hover { text-decoration: underline; }",
         ".stw-children { overflow: hidden; transition: max-height 0.2s ease; }",
         ".stw-header { display: flex; gap: 0; margin-bottom: 6px;",
@@ -204,19 +204,19 @@
         li.appendChild(row);
       }
 
-      // label
-      var label = document.createElement("span");
-      label.className = "stw-label";
+      // label — real <a> when there's a URL so right-click "open in new tab" works
+      var label;
+      if (node.data.url) {
+        label = document.createElement("a");
+        label.href = node.data.url;
+        label.classList.add("linkable");
+      } else {
+        label = document.createElement("span");
+      }
+      label.className = (label.className ? label.className + " " : "") + "stw-label";
       label.textContent = labelFn(node.data);
       if (node.data.level && node.data.level !== "root") {
         label.title = node.data.level.charAt(0).toUpperCase() + node.data.level.slice(1);
-      }
-      if (node.data.url) {
-        label.classList.add("linkable");
-        label.addEventListener("click", function (e) {
-          e.stopPropagation();
-          window.location.href = node.data.url;
-        });
       }
       row.appendChild(label);
 

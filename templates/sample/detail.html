@@ -1,12 +1,10 @@
 {% extends "base.html" %}
 {% from "_tables.html" import file_table %}
-{% block title %}{{ sample.name }} — Sample Tracker{% endblock %}
+{% block title %}{{ sample.code }} - {{ sample.name }}{% endblock %}
 {% block content %}
-<h2>{{ sample.name }}</h2>
+<h2>Sample: {{ sample.name }}</h2>
 <p>
   <a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a>
-  &middot;
-  <a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">Back to {{ sample.experiment.name }}</a>
 </p>
 
 <h3>Basic Info</h3>

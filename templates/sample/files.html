@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Files — {{ sample.name }} — Sample Tracker{% endblock %}
+{% block title %}Files - {{ sample.code }} - {{ sample.name }}{% endblock %}
 {% block content %}
 <h2>Files for {{ sample.name }}</h2>
 <p><a href="{{ url_for('sample_detail', id=sample.id) }}">Back to Sample</a></p>

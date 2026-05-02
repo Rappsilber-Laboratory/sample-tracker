@@ -1,14 +1,8 @@
 {% extends "base.html" %}
-{% block title %}{{ file.filename or file.id }} — Sample Tracker{% endblock %}
+{% block title %}{{ file.filename or file.id }}{% endblock %}
 {% block content %}
-<h2>{{ file.filename or ('File ' + file.id|string) }}</h2>
+<h2>Sample: {{ file.filename }}</h2>
 <p>
-  {% if file.sample %}
-    <a href="{{ url_for('sample_detail', id=file.sample_id) }}">Back to {{ file.sample.name }}</a>
-  {% else %}
-    <a href="{{ url_for('file_list') }}">Back to Files</a>
-  {% endif %}
-  &middot;
   <a href="{{ url_for('file_edit', id=file.id) }}">Edit association</a>
 </p>
 
