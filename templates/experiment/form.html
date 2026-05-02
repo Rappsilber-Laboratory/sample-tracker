@@ -27,8 +27,6 @@
     <tr>
       <th>Name</th>
       <th>Type</th>
-      <!-- <th>Disease</th>
-      <th>Tissue</th> -->
       <th></th>
     </tr>
   </thead>
@@ -37,8 +35,6 @@
     <tr>
       <td><a href="{{ url_for('sample_detail', id=sample.id) }}">{{ sample.name }}</a></td>
       <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
-   <!--   <td>{{ sample.disease or '' }}</td>
-      <td>{{ sample.tissue or '' }}</td> -->
       <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
     </tr>
     {% else %}

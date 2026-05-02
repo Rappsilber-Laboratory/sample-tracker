@@ -23,18 +23,40 @@
     return node.children ? node.children.length : 0;
   }
 
+  function countDescendants(data, targetLevel) {
+    if (!data.children || !data.children.length) return 0;
+    var count = 0;
+    data.children.forEach(function (c) {
+      if (c.level === targetLevel) count++;
+      count += countDescendants(c, targetLevel);
+    });
+    return count;
+  }
+
   function defaultLabel(node) {
     var name = node.name;
     var level = node.level;
     var bytes = node.total_bytes || 0;
     var size = fmtGB(bytes);
+    if (level === "project") {
+      var exps = childCount(node);
+      var samples = countDescendants(node, "sample");
+      var files = countDescendants(node, "file");
+      return name + " (" + exps + " experiments · " + samples + " samples · " + files + " files, " + size + ")";
+    }
+    if (level === "experiment") {
+      var samples = childCount(node);
+      var files = countDescendants(node, "file");
+      return name + " (" + samples + " samples · " + files + " files, " + size + ")";
+    }
+    if (level === "sample") {
+      var files = childCount(node);
+      return name + " (" + files + " files, " + size + ")";
+    }
+    if (level === "file")  return name + "  " + size;
+    if (level === "root")  return name;
     var n = childCount(node);
-    if (level === "project")    return name + " (" + n + " exp, " + size + ")";
-    if (level === "experiment") return name + " (" + n + " samples, " + size + ")";
-    if (level === "sample")     return name + " (" + n + " files, " + size + ")";
-    if (level === "file")       return name + "  " + size;
-    if (level === "root")       return name;
-    if (n > 0)                  return name + " (" + n + ")";
+    if (n > 0)             return name + " (" + n + ")";
     return name;
   }
 
@@ -186,6 +208,9 @@
       var label = document.createElement("span");
       label.className = "stw-label";
       label.textContent = labelFn(node.data);
+      if (node.data.level && node.data.level !== "root") {
+        label.title = node.data.level.charAt(0).toUpperCase() + node.data.level.slice(1);
+      }
       if (node.data.url) {
         label.classList.add("linkable");
         label.addEventListener("click", function (e) {
