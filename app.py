@@ -126,10 +126,10 @@ def api_tree():
         return {"id": p.id, "name": p.name or p.code, "level": "project", "total_bytes": total,
                 "url": url_for("project_detail", id=p.id), "children": children}
 
-    projects = Project.query.all()
+    projects = Project.query.filter_by(active=True).all()
     project_nodes = sorted([project_node(p) for p in projects], key=lambda n: n["total_bytes"], reverse=True)
     tree = {
-        "name": "Sample Tracker",
+        "name": "File Tracker",
         "level": "root",
         "total_bytes": sum(n["total_bytes"] for n in project_nodes),
         "children": project_nodes,
