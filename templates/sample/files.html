@@ -2,7 +2,7 @@
 {% block title %}Files — {{ sample.name }} — Sample Tracker{% endblock %}
 {% block content %}
 <h2>Files for {{ sample.name }}</h2>
-<p><a href="{{ url_for('sample_edit', id=sample.id) }}">Back to Sample</a></p>
+<p><a href="{{ url_for('sample_detail', id=sample.id) }}">Back to Sample</a></p>
 
 <p><strong>Search path:</strong> {{ sample.file_name_root or '(none)' }}</p>
 

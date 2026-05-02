@@ -16,7 +16,7 @@
   <tbody>
     {% for cl in cell_lines %}
     <tr>
-      <td>{{ cl.cell_line_name }}</td>
+      <td><a href="{{ url_for('cell_line_detail', id=cl.id) }}">{{ cl.cell_line_name }}</a></td>
       <td>{{ cl.cell_line_code or '' }}</td>
       <td>{{ cl.species.species_name if cl.species else '' }}</td>
       <td>{{ cl.viruses | map(attribute='name') | join(', ') }}</td>

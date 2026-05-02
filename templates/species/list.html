@@ -14,7 +14,7 @@
   <tbody>
     {% for sp in species_list %}
     <tr>
-      <td>{{ sp.species_name }}</td>
+      <td><a href="{{ url_for('species_detail', id=sp.id) }}">{{ sp.species_name }}</a></td>
       <td>{{ sp.species_taxon or '' }}</td>
       <td><a href="{{ url_for('species_edit', id=sp.id) }}">Edit</a></td>
     </tr>

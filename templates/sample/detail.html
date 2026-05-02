@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "_tables.html" import file_table %}
+{% block title %}{{ sample.name }} — Sample Tracker{% endblock %}
+{% block content %}
+<h2>{{ sample.name }}</h2>
+<p>
+  <a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a>
+  &middot;
+  <a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">Back to {{ sample.experiment.name }}</a>
+</p>
+
+<h3>Basic Info</h3>
+<table>
+  <tbody>
+    <tr><th>Experiment</th><td><a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">{{ sample.experiment.name }}</a></td></tr>
+    {% if sample.code %}<tr><th>Code</th><td>{{ sample.code }}</td></tr>{% endif %}
+    <tr><th>Type</th><td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td></tr>
+    {% if sample.comment %}<tr><th>Comment</th><td>{{ sample.comment }}</td></tr>{% endif %}
+  </tbody>
+</table>
+
+{% set has_organism = sample.disease or sample.phenotype or sample.tissue or sample.organism_age or sample.organism_sex %}
+{% if has_organism or sample.species_list %}
+<h3>Organism</h3>
+<table>
+  <tbody>
+    {% if sample.disease %}<tr><th>Disease</th><td>{{ sample.disease }}</td></tr>{% endif %}
+    {% if sample.phenotype %}<tr><th>Phenotype</th><td>{{ sample.phenotype }}</td></tr>{% endif %}
+    {% if sample.tissue %}<tr><th>Tissue</th><td>{{ sample.tissue }}</td></tr>{% endif %}
+    {% if sample.organism_age %}<tr><th>Age</th><td>{{ sample.organism_age }}{% if sample.organism_age_unit %} {{ sample.organism_age_unit }}{% endif %}</td></tr>{% endif %}
+    {% if sample.organism_sex %}<tr><th>Sex</th><td>{{ sample.organism_sex }}</td></tr>{% endif %}
+    {% if sample.species_list %}<tr><th>Species</th><td>{{ sample.species_list | map(attribute='name') | join(', ') }}</td></tr>{% endif %}
+    {% if sample.cell_lines %}<tr><th>Cell Lines</th><td>{{ sample.cell_lines | map(attribute='name') | join(', ') }}</td></tr>{% endif %}
+  </tbody>
+</table>
+{% endif %}
+
+{% set has_prep = sample.isotope_labeling_channel or sample.chemical_labelling or sample.enrichment_process or sample.replicate or sample.synthetic_peptide or sample.digestion or sample.protein_isolation_or_fractionation %}
+{% if has_prep %}
+<h3>Sample Preparation</h3>
+<table>
+  <tbody>
+    {% if sample.isotope_labeling_channel %}<tr><th>Isotope Labeling Channel</th><td>{{ sample.isotope_labeling_channel }}</td></tr>{% endif %}
+    {% if sample.chemical_labelling %}<tr><th>Chemical Labelling</th><td>{{ sample.chemical_labelling }}</td></tr>{% endif %}
+    {% if sample.enrichment_process %}<tr><th>Enrichment Process</th><td>{{ sample.enrichment_process }}</td></tr>{% endif %}
+    {% if sample.replicate %}<tr><th>Replicate</th><td>{{ sample.replicate }}</td></tr>{% endif %}
+    {% if sample.synthetic_peptide %}<tr><th>Synthetic Peptide</th><td>{{ sample.synthetic_peptide }}</td></tr>{% endif %}
+    {% if sample.digestion %}<tr><th>Digestion</th><td>{{ sample.digestion }}</td></tr>{% endif %}
+    {% if sample.protein_isolation_or_fractionation %}<tr><th>Protein Isolation / Fractionation</th><td>{{ sample.protein_isolation_or_fractionation }}</td></tr>{% endif %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if sample.quantitation %}
+<h3>Quantitation</h3>
+<table>
+  <tbody>
+    {% if sample.quantitation_scheme %}<tr><th>Scheme</th><td>{{ sample.quantitation_scheme }}</td></tr>{% endif %}
+    {% if sample.quantitation_method %}<tr><th>Method</th><td>{{ sample.quantitation_method }}</td></tr>{% endif %}
+  </tbody>
+</table>
+{% endif %}
+
+{% if sample.crosslinked_sample %}
+<h3>Crosslink Details</h3>
+<table>
+  <tbody>
+    {% if sample.crosslinker %}<tr><th>Crosslinker</th><td>{{ sample.crosslinker }}</td></tr>{% endif %}
+    {% if sample.crosslinking_type %}<tr><th>Crosslinking Type</th><td>{{ sample.crosslinking_type }}</td></tr>{% endif %}
+    {% if sample.protein_or_cell_concentration %}<tr><th>Protein / Cell Concentration</th><td>{{ sample.protein_or_cell_concentration }}{% if sample.protein_or_cell_concentration_unit %} {{ sample.protein_or_cell_concentration_unit }}{% endif %}</td></tr>{% endif %}
+    {% if sample.crosslinker_or_compound_concentration %}<tr><th>Crosslinker / Compound Concentration</th><td>{{ sample.crosslinker_or_compound_concentration }}{% if sample.crosslinker_or_compound_concentration_unit %} {{ sample.crosslinker_or_compound_concentration_unit }}{% endif %}</td></tr>{% endif %}
+    {% if sample.organic_solvent_concentration %}<tr><th>Organic Solvent Concentration</th><td>{{ sample.organic_solvent_concentration }}{% if sample.organic_solvent_concentration_unit %} {{ sample.organic_solvent_concentration_unit }}{% endif %}</td></tr>{% endif %}
+    {% if sample.reaction_temperature_in_celsius %}<tr><th>Reaction Temperature</th><td>{{ sample.reaction_temperature_in_celsius }} °C</td></tr>{% endif %}
+    {% if sample.reaction_time_in_minutes %}<tr><th>Reaction Time</th><td>{{ sample.reaction_time_in_minutes }} min</td></tr>{% endif %}
+    {% if sample.quenching_reagent %}<tr><th>Quenching Reagent</th><td>{{ sample.quenching_reagent }}</td></tr>{% endif %}
+    {% if sample.uv_source %}<tr><th>UV Source</th><td>{{ sample.uv_source }}</td></tr>{% endif %}
+    {% if sample.uv_time_in_seconds %}<tr><th>UV Time</th><td>{{ sample.uv_time_in_seconds }} s</td></tr>{% endif %}
+    {% if sample.uv_wavelength_in_nanometers %}<tr><th>UV Wavelength</th><td>{{ sample.uv_wavelength_in_nanometers }} nm</td></tr>{% endif %}
+  </tbody>
+</table>
+{% else %}
+{% if sample.peptide_level_fraction %}
+<h3>Identification Details</h3>
+<table>
+  <tbody>
+    <tr><th>Peptide Level Fraction</th><td>{{ sample.peptide_level_fraction }}</td></tr>
+  </tbody>
+</table>
+{% endif %}
+{% endif %}
+
+<h3>Files</h3>
+{{ file_table(sample.files, show_sample=false) }}
+{% endblock %}

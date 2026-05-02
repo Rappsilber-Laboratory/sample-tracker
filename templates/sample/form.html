@@ -12,84 +12,100 @@
     <p>{{ render_field(form.code) }}</p>
     <p>{{ render_field(form.name) }}</p>
     <p>{{ render_field(form.comment) }}</p>
-    <p>
+    <!-- <p>
       {{ render_field(form.file_name_root) }}
       <small class="field-hint">File Name Root Formatting: InstrumentInitial_Date_ProjectCode_UserInitials_BatchName</small>
       {% if sample %}
         <a href="{{ url_for('sample_files', id=sample.id) }}">View Files</a>
       {% endif %}
-    </p>
+    </p> -->
   </fieldset>
 
-  <fieldset>
-    <legend>Organism</legend>
-    <p>{{ render_field(form.disease) }}</p>
-    <p>{{ render_field(form.phenotype) }}</p>
-    <p>{{ render_field(form.tissue) }}</p>
-    <p>{{ render_field(form.organism_age) }}</p>
-    <p>{{ render_field(form.organism_age_unit) }}</p>
-    <p>{{ render_field(form.organism_sex) }}</p>
-  </fieldset>
+  <details>
+    <summary>Organism</summary>
+    <fieldset>
+      <p>{{ render_field(form.disease) }}</p>
+      <p>{{ render_field(form.phenotype) }}</p>
+      <p>{{ render_field(form.tissue) }}</p>
+      <p>{{ render_field(form.organism_age) }}</p>
+      <p>{{ render_field(form.organism_age_unit) }}</p>
+      <p>{{ render_field(form.organism_sex) }}</p>
+    </fieldset>
+  </details>
 
-  <fieldset>
-    <legend>Sample Preparation</legend>
-    <p>{{ render_field(form.isotope_labeling_channel) }}</p>
-    <p>{{ render_field(form.chemical_labelling) }}</p>
-    <p>{{ render_field(form.enrichment_process) }}</p>
-    <p>{{ render_field(form.replicate) }}</p>
-    <p>{{ render_field(form.synthetic_peptide) }}</p>
-    <p>{{ render_field(form.digestion) }}</p>
-    <p>{{ render_field(form.protein_isolation_or_fractionation) }}</p>
-  </fieldset>
+  <details>
+    <summary>Sample Preparation</summary>
+    <fieldset>
+      <p>{{ render_field(form.isotope_labeling_channel) }}</p>
+      <p>{{ render_field(form.chemical_labelling) }}</p>
+      <p>{{ render_field(form.enrichment_process) }}</p>
+      <p>{{ render_field(form.replicate) }}</p>
+      <p>{{ render_field(form.synthetic_peptide) }}</p>
+      <p>{{ render_field(form.digestion) }}</p>
+      <p>{{ render_field(form.protein_isolation_or_fractionation) }}</p>
+    </fieldset>
+  </details>
 
-  <fieldset>
-    <legend>Quantitation</legend>
-    <p>{{ render_field(form.quantitation) }}</p>
-    <p>{{ render_field(form.quantitation_scheme) }}</p>
-    <p>{{ render_field(form.quantitation_method) }}</p>
-  </fieldset>
+  <details>
+    <summary>Quantitation</summary>
+    <fieldset>
+      <p>{{ render_field(form.quantitation) }}</p>
+      <p>{{ render_field(form.quantitation_scheme) }}</p>
+      <p>{{ render_field(form.quantitation_method) }}</p>
+    </fieldset>
+  </details>
 
-  <fieldset>
-    <legend>Sample Type</legend>
-    <p>{{ render_field(form.crosslinked_sample) }}</p>
-  </fieldset>
+  <details>
+    <summary>Sample Type</summary>
+    <fieldset>
+      <p>{{ render_field(form.crosslinked_sample) }}</p>
+    </fieldset>
+  </details>
 
-  <fieldset id="crosslink-fields">
-    <legend>Crosslink Details</legend>
-    <p>{{ render_field(form.crosslinker) }}</p>
-    <p>{{ render_field(form.crosslinking_type) }}</p>
-    <p>{{ render_field(form.protein_or_cell_concentration) }}</p>
-    <p>{{ render_field(form.protein_or_cell_concentration_unit) }}</p>
-    <p>{{ render_field(form.crosslinker_or_compound_concentration) }}</p>
-    <p>{{ render_field(form.crosslinker_or_compound_concentration_unit) }}</p>
-    <p>{{ render_field(form.organic_solvent_concentration) }}</p>
-    <p>{{ render_field(form.organic_solvent_concentration_unit) }}</p>
-    <p>{{ render_field(form.reaction_temperature_in_celsius) }}</p>
-    <p>{{ render_field(form.reaction_time_in_minutes) }}</p>
-    <p>{{ render_field(form.quenching_reagent) }}</p>
-    <p>{{ render_field(form.uv_source) }}</p>
-    <p>{{ render_field(form.uv_time_in_seconds) }}</p>
-    <p>{{ render_field(form.uv_wavelength_in_nanometers) }}</p>
-  </fieldset>
+  <details id="crosslink-fields">
+    <summary>Crosslink Details</summary>
+    <fieldset>
+      <p>{{ render_field(form.crosslinker) }}</p>
+      <p>{{ render_field(form.crosslinking_type) }}</p>
+      <p>{{ render_field(form.protein_or_cell_concentration) }}</p>
+      <p>{{ render_field(form.protein_or_cell_concentration_unit) }}</p>
+      <p>{{ render_field(form.crosslinker_or_compound_concentration) }}</p>
+      <p>{{ render_field(form.crosslinker_or_compound_concentration_unit) }}</p>
+      <p>{{ render_field(form.organic_solvent_concentration) }}</p>
+      <p>{{ render_field(form.organic_solvent_concentration_unit) }}</p>
+      <p>{{ render_field(form.reaction_temperature_in_celsius) }}</p>
+      <p>{{ render_field(form.reaction_time_in_minutes) }}</p>
+      <p>{{ render_field(form.quenching_reagent) }}</p>
+      <p>{{ render_field(form.uv_source) }}</p>
+      <p>{{ render_field(form.uv_time_in_seconds) }}</p>
+      <p>{{ render_field(form.uv_wavelength_in_nanometers) }}</p>
+    </fieldset>
+  </details>
 
-  <fieldset id="identification-fields">
-    <legend>Identification Details</legend>
-    <p>{{ render_field(form.peptide_level_fraction) }}</p>
-  </fieldset>
+  <details id="identification-fields">
+    <summary>Identification Details</summary>
+    <fieldset>
+      <p>{{ render_field(form.peptide_level_fraction) }}</p>
+    </fieldset>
+  </details>
 
-  <fieldset>
-    <legend>Species</legend>
-    {{ form.species_ids() }}
-  </fieldset>
+  <details>
+    <summary>Species</summary>
+    <fieldset>
+      {{ form.species_ids() }}
+    </fieldset>
+  </details>
 
-  <fieldset>
-    <legend>Cell Lines</legend>
-    {{ form.cell_line_ids() }}
-  </fieldset>
+  <details>
+    <summary>Cell Lines</summary>
+    <fieldset>
+      {{ form.cell_line_ids() }}
+    </fieldset>
+  </details>
 
   <button type="submit">Save</button>
   {% if sample %}
-    <a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">Cancel</a>
+    <a href="{{ url_for('sample_detail', id=sample.id) }}">Cancel</a>
   {% else %}
     <a href="{{ url_for('sample_list') }}">Cancel</a>
   {% endif %}
@@ -98,7 +114,7 @@
 {% if sample %}
 <hr>
 <h3>Files</h3>
-<p><a href="{{ url_for('file_create', sample_id=sample.id) }}" role="button">+ Add File Record</a></p>
+<!-- <p><a href="{{ url_for('file_create', sample_id=sample.id) }}" role="button">+ Add File Record</a></p> -->
 {% if sample.files %}
 <table>
   <thead>
@@ -108,9 +124,8 @@
       <th>Date</th>
       <th>Batch</th>
       <th>User</th>
-      <th>Size (bytes)</th>
+      <th>Size (GB)</th>
       <th>Scans</th>
-      <th></th>
     </tr>
   </thead>
   <tbody>
@@ -121,16 +136,8 @@
       <td>{{ f.date or '' }}</td>
       <td>{{ f.batch_name or '' }}</td>
       <td>{{ f.user_initials or '' }}</td>
-      <td>{{ '%d'|format(f.size_bytes) if f.size_bytes is not none else '' }}</td>
+      <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>
       <td>{{ f.scan_count or '' }}</td>
-      <td>
-        <a href="{{ url_for('file_edit', id=f.id) }}">Edit</a>
-        &middot;
-        <form method="post" action="{{ url_for('file_delete', id=f.id) }}" style="display:inline">
-          {{ form.hidden_tag() }}
-          <button type="submit" onclick="return confirm('Delete this file record?')">Delete</button>
-        </form>
-      </td>
     </tr>
     {% endfor %}
   </tbody>
@@ -149,10 +156,12 @@
     const identificationFields = document.getElementById('identification-fields');
     if (cb.checked) {
       crosslinkFields.style.display = '';
+      crosslinkFields.open = true;
       identificationFields.style.display = 'none';
     } else {
       crosslinkFields.style.display = 'none';
       identificationFields.style.display = '';
+      identificationFields.open = true;
     }
   }
   document.getElementById('crosslinked_sample').addEventListener('change', toggleSampleFields);

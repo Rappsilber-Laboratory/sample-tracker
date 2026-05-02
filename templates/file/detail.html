@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ file.filename or file.id }} — Sample Tracker{% endblock %}
+{% block content %}
+<h2>{{ file.filename or ('File ' + file.id|string) }}</h2>
+<p>
+  {% if file.sample %}
+    <a href="{{ url_for('sample_detail', id=file.sample_id) }}">Back to {{ file.sample.name }}</a>
+  {% else %}
+    <a href="{{ url_for('file_list') }}">Back to Files</a>
+  {% endif %}
+</p>
+
+<table>
+  <tbody>
+    <tr><th>Sample</th><td>{% if file.sample %}<a href="{{ url_for('sample_detail', id=file.sample_id) }}">{{ file.sample.name }}</a>{% else %}—{% endif %}</td></tr>
+    <tr><th>Location</th><td>{{ file.location or '—' }}</td></tr>
+    <tr><th>Size</th><td>{{ '%.3f GB'|format(file.size_bytes / 1e9) if file.size_bytes is not none else '—' }}</td></tr>
+    <tr><th>Scans</th><td>{{ file.scan_count or '—' }}</td></tr>
+    <tr><th>Instrument</th><td>{{ file.instrument_initial or '—' }}</td></tr>
+    <tr><th>Date</th><td>{{ file.date or '—' }}</td></tr>
+    <tr><th>Project code</th><td>{{ file.project_code or '—' }}</td></tr>
+    <tr><th>User initials</th><td>{{ file.user_initials or '—' }}</td></tr>
+    <tr><th>Batch</th><td>{{ file.batch_name or '—' }}</td></tr>
+    <tr><th>Sample code</th><td>{{ file.sample_code or '—' }}</td></tr>
+    {% if file.meta %}
+    <tr><th>Meta</th><td><pre style="margin:0">{{ file.meta }}</pre></td></tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endblock %}

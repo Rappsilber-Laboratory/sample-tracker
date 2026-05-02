@@ -10,6 +10,10 @@
   <p>{{ render_field(form.species_id) }}</p>
   <p>{{ render_field(form.virus_ids) }}</p>
   <button type="submit">Save</button>
-  <a href="{{ url_for('cell_line_list') }}">Cancel</a>
+  {% if cell_line %}
+    <a href="{{ url_for('cell_line_detail', id=cell_line.id) }}">Cancel</a>
+  {% else %}
+    <a href="{{ url_for('cell_line_list') }}">Cancel</a>
+  {% endif %}
 </form>
 {% endblock %}

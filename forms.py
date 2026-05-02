@@ -16,7 +16,7 @@ class ProjectForm(FlaskForm):
     code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[Optional()])
-    contact_person_initials = StringField("Contact Person Initials", validators=[Optional()])
+    contact_person_initials = SelectField("Contact Person", validators=[Optional()], coerce=str)
     active = BooleanField("Active", default=True)
 
 
@@ -25,7 +25,7 @@ class ExperimentForm(FlaskForm):
     code = StringField("Code", validators=[Optional()])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[Optional()])
-    contact_person = StringField("Contact Person", validators=[Optional()])
+    contact_person = SelectField("Contact Person", validators=[Optional()], coerce=str)
 
 
 class SpeciesForm(FlaskForm):
@@ -54,6 +54,7 @@ class CellLineForm(FlaskForm):
 class UserForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
     initials = StringField("Initials", validators=[Optional()])
+    active = BooleanField("Active", default=True)
 
 
 class SampleForm(FlaskForm):
@@ -89,9 +90,9 @@ class SampleForm(FlaskForm):
     quantitation_scheme = StringField("Quantitation Scheme", default="N/A", validators=[Optional()])
     quantitation_method = SelectField(
         "Quantitation Method",
-        default="N/A",
+        default="",
         choices=[
-            ("N/A", "N/A"),
+            ("", "N/A"),
             ("LFQ", "LFQ"),
             ("isotope labelled MS1", "Isotope Labelled MS1"),
             ("Isobaric MS2", "Isobaric MS2"),
@@ -156,12 +157,12 @@ class SampleForm(FlaskForm):
 class FileForm(FlaskForm):
     location = StringField("Location", validators=[Optional()])
     filename = StringField("Filename", validators=[Optional()])
-    size_bytes = FloatField("Size (bytes)", validators=[Optional()])
+    size_bytes = FloatField("Size (GB)", validators=[Optional()])
     instrument_initial = StringField("Instrument Initial", validators=[Optional()])
     date = StringField("Date", validators=[Optional()])
     project_code = StringField("Project Code", validators=[Optional()])
     user_initials = StringField("User Initials", validators=[Optional()])
     batch_name = StringField("Batch Name", validators=[Optional()])
     scan_count = IntegerField("Scan Count", validators=[Optional()])
-    meta = TextAreaField("Meta (JSON)", validators=[Optional()])
+    meta_json = TextAreaField("Meta (JSON)", validators=[Optional()])
     sample_code = StringField("Sample Code", validators=[Optional()])

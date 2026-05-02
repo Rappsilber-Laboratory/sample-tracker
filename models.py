@@ -162,6 +162,7 @@ class User(db.Model):
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     name = db.Column(db.Text, nullable=False)
     initials = db.Column(db.Text)
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class File(db.Model):
@@ -181,4 +182,7 @@ class File(db.Model):
     meta = db.Column(db.Text)
     sample_code = db.Column(db.Text)
 
-    sample = db.relationship("Sample", backref="files")
+    sample = db.relationship(
+        "Sample",
+        backref=db.backref("files", order_by="desc(File.date), File.filename"),
+    )

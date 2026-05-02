@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}{{ virus.name }} — Sample Tracker{% endblock %}
+{% block content %}
+<h2>{{ virus.name }}</h2>
+<p>
+  <a href="{{ url_for('virus_edit', id=virus.id) }}">Edit</a>
+  &middot;
+  <a href="{{ url_for('virus_list') }}">Back to Viruses</a>
+</p>
+<table>
+  <tbody>
+    <tr><th>Name</th><td>{{ virus.name }}</td></tr>
+    {% if virus.variant %}<tr><th>Variant</th><td>{{ virus.variant }}</td></tr>{% endif %}
+    {% if virus.species %}<tr><th>Species</th><td><a href="{{ url_for('species_detail', id=virus.species.id) }}">{{ virus.species.species_name }}</a></td></tr>{% endif %}
+  </tbody>
+</table>
+{% endblock %}

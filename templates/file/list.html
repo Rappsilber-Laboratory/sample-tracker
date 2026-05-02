@@ -1,39 +1,7 @@
 {% extends "base.html" %}
+{% from "_tables.html" import file_table %}
 {% block title %}Files — Sample Tracker{% endblock %}
 {% block content %}
 <h2>Files</h2>
-<table>
-  <thead>
-    <tr>
-      <th>Filename</th>
-      <th>Sample</th>
-      <th>Instrument</th>
-      <th>Date</th>
-      <th>Batch</th>
-      <th>User</th>
-      <th>Project</th>
-      <th>Size (bytes)</th>
-      <th>Scans</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for f in files %}
-    <tr>
-      <td>{{ f.filename or '' }}</td>
-      <td>{% if f.sample %}<a href="{{ url_for('sample_edit', id=f.sample_id) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>
-      <td>{{ f.instrument_initial or '' }}</td>
-      <td>{{ f.date or '' }}</td>
-      <td>{{ f.batch_name or '' }}</td>
-      <td>{{ f.user_initials or '' }}</td>
-      <td>{{ f.project_code or '' }}</td>
-      <td>{{ '%d'|format(f.size_bytes) if f.size_bytes is not none else '' }}</td>
-      <td>{{ f.scan_count or '' }}</td>
-      <td><a href="{{ url_for('file_edit', id=f.id) }}">Edit</a></td>
-    </tr>
-    {% else %}
-    <tr><td colspan="10">No file records found.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+{{ file_table(files) }}
 {% endblock %}

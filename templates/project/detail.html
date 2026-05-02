@@ -1,7 +1,8 @@
 {% extends "base.html" %}
+{% from "_tables.html" import experiment_table, sample_table, file_table %}
 {% block title %}{{ project.name }} — Sample Tracker{% endblock %}
 {% block content %}
-<h2>{{ project.code }} — {{ project.name }}</h2>
+<h2>Project: {{ project.code }} — {{ project.name }}</h2>
 <p>
   <a href="{{ url_for('project_edit', id=project.id) }}">Edit Project</a>
   &middot;
@@ -18,26 +19,11 @@
 
 <h3>Experiments</h3>
 <p><a href="{{ url_for('experiment_create', project_id=project.id) }}">New Experiment</a></p>
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Contact</th>
-      <th>Samples</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for experiment in experiments %}
-    <tr>
-      <td><a href="{{ url_for('experiment_detail', id=experiment.id) }}">{{ experiment.name }}</a></td>
-      <td>{{ experiment.contact_person or '' }}</td>
-      <td>{{ experiment.samples | length }}</td>
-      <td><a href="{{ url_for('experiment_edit', id=experiment.id) }}">Edit</a></td>
-    </tr>
-    {% else %}
-    <tr><td colspan="4">No experiments yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+{{ experiment_table(experiments, show_project=false) }}
+
+<h3>Samples</h3>
+{{ sample_table(samples, show_project=false) }}
+
+<h3>Files</h3>
+{{ file_table(files) }}
 {% endblock %}

@@ -8,18 +8,20 @@
     <tr>
       <th>Name</th>
       <th>Initials</th>
+      <th>Active</th>
       <th></th>
     </tr>
   </thead>
   <tbody>
     {% for user in users %}
     <tr>
-      <td>{{ user.name }}</td>
+      <td><a href="{{ url_for('user_detail', id=user.id) }}">{{ user.name }}</a></td>
       <td>{{ user.initials or '' }}</td>
+      <td>{{ 'Yes' if user.active else 'No' }}</td>
       <td><a href="{{ url_for('user_edit', id=user.id) }}">Edit</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="3">No users yet.</td></tr>
+    <tr><td colspan="4">No users yet.</td></tr>
     {% endfor %}
   </tbody>
 </table>

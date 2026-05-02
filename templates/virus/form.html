@@ -9,6 +9,10 @@
   <p>{{ render_field(form.variant) }}</p>
   <p>{{ render_field(form.species_id) }}</p>
   <button type="submit">Save</button>
-  <a href="{{ url_for('virus_list') }}">Cancel</a>
+  {% if virus %}
+    <a href="{{ url_for('virus_detail', id=virus.id) }}">Cancel</a>
+  {% else %}
+    <a href="{{ url_for('virus_list') }}">Cancel</a>
+  {% endif %}
 </form>
 {% endblock %}

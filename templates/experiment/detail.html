@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_tables.html" import sample_table, file_table %}
 {% block title %}{{ experiment.name }} — Sample Tracker{% endblock %}
 {% block content %}
 <h2>{{ experiment.name }}</h2>
@@ -15,28 +16,8 @@
 
 <h3>Samples</h3>
 <p><a href="{{ url_for('sample_create', experiment_id=experiment.id) }}">New Sample</a></p>
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Type</th>
-      <th>Disease</th>
-      <th>Tissue</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for sample in samples %}
-    <tr>
-      <td>{{ sample.name }}</td>
-      <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
-      <td>{{ sample.disease or '' }}</td>
-      <td>{{ sample.tissue or '' }}</td>
-      <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
-    </tr>
-    {% else %}
-    <tr><td colspan="5">No samples yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+{{ sample_table(samples, show_experiment=false, show_project=false) }}
+
+<h3>Files</h3>
+{{ file_table(files) }}
 {% endblock %}

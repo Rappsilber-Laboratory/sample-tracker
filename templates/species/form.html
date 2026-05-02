@@ -8,6 +8,10 @@
   <p>{{ render_field(form.species_name) }}</p>
   <p>{{ render_field(form.species_taxon) }}</p>
   <button type="submit">Save</button>
-  <a href="{{ url_for('species_list') }}">Cancel</a>
+  {% if species %}
+    <a href="{{ url_for('species_detail', id=species.id) }}">Cancel</a>
+  {% else %}
+    <a href="{{ url_for('species_list') }}">Cancel</a>
+  {% endif %}
 </form>
 {% endblock %}

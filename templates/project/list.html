@@ -16,7 +16,8 @@
       <th>Code</th>
       <th>Name</th>
       <th>Contact</th>
-      <th>Status</th>
+      <th>Experiments</th>
+      <th>Active</th>
       <th></th>
     </tr>
   </thead>
@@ -25,12 +26,18 @@
     <tr>
       <td>{{ project.code }}</td>
       <td><a href="{{ url_for('project_detail', id=project.id) }}">{{ project.name }}</a></td>
-      <td>{{ project.contact_person or '' }}</td>
-      <td>{{ 'Active' if project.active else 'Archived' }}</td>
+      <td>{{ users.get(project.contact_person_initials, project.contact_person_initials or '') }}</td>
+      <td>{{ exp_counts[project.id] }}</td>
+      <td>
+        <form method="post" action="{{ url_for('project_toggle_active', id=project.id, show_archived=1 if show_archived else 0) }}" style="display:inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="checkbox" {% if project.active %}checked{% endif %} onchange="this.form.submit()" title="{{ 'Active' if project.active else 'Archived' }}">
+        </form>
+      </td>
       <td><a href="{{ url_for('project_edit', id=project.id) }}">Edit</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="5">No projects found.</td></tr>
+    <tr><td colspan="6">No projects found.</td></tr>
     {% endfor %}
   </tbody>
 </table>

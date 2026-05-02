@@ -1,3 +1,42 @@
+/* force light theme regardless of OS dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: light;
+    --bg: #fff;
+    --accent-bg: #f5f7ff;
+    --text: #212121;
+    --text-light: #585858;
+    --border: #898ea4;
+    --accent: #0d47a1;
+    --accent-hover: #1266e2;
+    --accent-text: var(--bg);
+    --code: #d81b60;
+    --preformatted: #444;
+    --disabled: #efefef;
+  }
+}
+
+/* override Simple CSS 3-col grid — collapse to single full-width column */
+body { grid-template-columns: 1fr !important; font-size: 0.92rem; }
+body > * { grid-column: 1 !important; }
+body > header { padding: 0.4rem 1.5rem; text-align: left; }
+main { padding: 0.5rem 1.5rem; }
+h1, h2, h3 { font-size: 1.15em; }
+nav a { font-size: 0.92rem; }
+table { font-size: 0.88rem; }
+input, select, textarea, button { font-size: 0.92rem; }
+label { font-size: 0.92rem; }
+
+#dashboard {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  height: calc(100vh - 90px);
+}
+#stats-panel { flex-shrink: 0; font-size: 0.8rem; }
+#stats-panel table { font-size: 0.8rem; }
+#tree-container { flex: 1; height: 100%; overflow-y: auto; }
+
 .flash {
   padding: 0.75rem 1rem;
   border-radius: 4px;

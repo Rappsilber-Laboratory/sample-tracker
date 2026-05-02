@@ -1,15 +1,15 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="color-scheme: light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Sample Tracker{% endblock %}</title>
-  <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='simple.min.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header>
-    <h1><a href="{{ url_for('index') }}">Sample Tracker</a></h1>
+    <!-- <h1><a href="{{ url_for('index') }}">Sample Tracker</a></h1> -->
     <nav>
       <a href="{{ url_for('project_list') }}">Projects</a>
       <a href="{{ url_for('experiment_list') }}">Experiments</a>

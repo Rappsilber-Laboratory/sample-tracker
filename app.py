@@ -2,8 +2,9 @@ import os
 import sqlite3
 
 import click
-from flask import Flask, flash, redirect, render_template, request, url_for
+from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
 from flask_wtf import CSRFProtect
+from sqlalchemy.orm import joinedload
 
 from config import Config
 from fileInfoScript import SpectraAddressBook
@@ -62,6 +63,51 @@ def index():
     return render_template("index.html", counts=counts)
 
 
+@app.route("/api/tree")
+def api_tree():
+    def file_nodes(sample):
+        nodes = [
+            {
+                "id": f.id,
+                "name": f.filename or f.location or str(f.id),
+                "level": "file",
+                "total_bytes": int(f.size_bytes or 0),
+                "url": url_for("file_detail", id=f.id),
+            }
+            for f in sample.files
+        ]
+        nodes.sort(key=lambda n: n["total_bytes"], reverse=True)
+        return nodes
+
+    def sample_node(s):
+        children = file_nodes(s)
+        total = sum(c["total_bytes"] for c in children)
+        return {"id": s.id, "name": s.name, "level": "sample", "total_bytes": total,
+                "url": url_for("sample_detail", id=s.id), "children": children}
+
+    def experiment_node(e):
+        children = sorted([sample_node(s) for s in e.samples], key=lambda n: n["total_bytes"], reverse=True)
+        total = sum(c["total_bytes"] for c in children)
+        return {"id": e.id, "name": e.name, "level": "experiment", "total_bytes": total,
+                "url": url_for("experiment_detail", id=e.id), "children": children}
+
+    def project_node(p):
+        children = sorted([experiment_node(e) for e in p.experiments], key=lambda n: n["total_bytes"], reverse=True)
+        total = sum(c["total_bytes"] for c in children)
+        return {"id": p.id, "name": p.name or p.code, "level": "project", "total_bytes": total,
+                "url": url_for("project_detail", id=p.id), "children": children}
+
+    projects = Project.query.all()
+    project_nodes = sorted([project_node(p) for p in projects], key=lambda n: n["total_bytes"], reverse=True)
+    tree = {
+        "name": "Sample Tracker",
+        "level": "root",
+        "total_bytes": sum(n["total_bytes"] for n in project_nodes),
+        "children": project_nodes,
+    }
+    return jsonify(tree)
+
+
 # ---------------------------------------------------------------------------
 # Projects
 # ---------------------------------------------------------------------------
@@ -72,9 +118,25 @@ def project_list():
         projects = Project.query.order_by(Project.name).all()
     else:
         projects = Project.query.filter_by(active=True).order_by(Project.name).all()
+    users = {u.initials: u.name for u in User.query.all()}
+    exp_counts = {
+        p.id: Experiment.query.filter_by(project_id=p.id).count()
+        for p in projects
+    }
+    projects = sorted(projects, key=lambda p: exp_counts[p.id], reverse=True)
     return render_template(
-        "project/list.html", projects=projects, show_archived=show_archived
+        "project/list.html", projects=projects, show_archived=show_archived,
+        users=users, exp_counts=exp_counts
     )
+
+
+@app.route("/projects/<int:id>/toggle-active", methods=["POST"])
+def project_toggle_active(id):
+    project = db.get_or_404(Project, id)
+    project.active = not project.active
+    db.session.commit()
+    show_archived = request.args.get("show_archived", "0")
+    return redirect(url_for("project_list", show_archived=show_archived))
 
 
 @app.route("/projects/<int:id>")
@@ -89,15 +151,28 @@ def project_detail(id):
         else None
     )
     contact_name = contact_user.name if contact_user else project.contact_person_initials
+    samples = (
+        Sample.query.join(Experiment)
+        .options(joinedload(Sample.experiment))
+        .filter(Experiment.project_id == id)
+        .order_by(Sample.name).all()
+    )
+    files = (
+        File.query.join(Sample).join(Experiment)
+        .options(joinedload(File.sample))
+        .filter(Experiment.project_id == id)
+        .order_by(File.date.desc(), File.filename).all()
+    )
     return render_template(
         "project/detail.html", project=project, experiments=experiments,
-        contact_name=contact_name
+        contact_name=contact_name, samples=samples, files=files
     )
 
 
 @app.route("/projects/new", methods=["GET", "POST"])
 def project_create():
     form = ProjectForm()
+    form.contact_person_initials.choices = _user_initials_choices()
     if form.validate_on_submit():
         project = Project()
         form.populate_obj(project)
@@ -112,12 +187,27 @@ def project_create():
 def project_edit(id):
     project = db.get_or_404(Project, id)
     form = ProjectForm(obj=project)
+    form.contact_person_initials.choices = _user_initials_choices()
     if form.validate_on_submit():
         form.populate_obj(project)
         db.session.commit()
         flash("Project updated.", "success")
         return redirect(url_for("project_detail", id=project.id))
     return render_template("project/form.html", form=form, project=project)
+
+
+def _user_initials_choices():
+    users = User.query.filter_by(active=True).order_by(User.name).all()
+    choices = [("", "— none —")]
+    choices += [(u.initials, u.name) for u in users if u.initials]
+    return choices
+
+
+def _user_name_choices():
+    users = User.query.filter_by(active=True).order_by(User.name).all()
+    choices = [("", "— none —")]
+    choices += [(u.name, u.name) for u in users]
+    return choices
 
 
 # ---------------------------------------------------------------------------
@@ -132,6 +222,7 @@ def _active_project_choices():
 def experiment_list():
     experiments = (
         Experiment.query.join(Project)
+        .options(joinedload(Experiment.project))
         .filter(Project.active == True)  # noqa: E712
         .order_by(Experiment.name)
         .all()
@@ -143,8 +234,14 @@ def experiment_list():
 def experiment_detail(id):
     experiment = db.get_or_404(Experiment, id)
     samples = Sample.query.filter_by(experiment_id=id).order_by(Sample.name).all()
+    files = (
+        File.query.join(Sample)
+        .options(joinedload(File.sample))
+        .filter(Sample.experiment_id == id)
+        .order_by(File.date.desc(), File.filename).all()
+    )
     return render_template(
-        "experiment/detail.html", experiment=experiment, samples=samples
+        "experiment/detail.html", experiment=experiment, samples=samples, files=files
     )
 
 
@@ -152,6 +249,7 @@ def experiment_detail(id):
 def experiment_create():
     form = ExperimentForm()
     form.project_id.choices = _active_project_choices()
+    form.contact_person.choices = _user_name_choices()
     if request.method == "GET" and request.args.get("project_id"):
         form.project_id.data = int(request.args["project_id"])
     if form.validate_on_submit():
@@ -170,6 +268,7 @@ def experiment_edit(id):
     samples = Sample.query.filter_by(experiment_id=id).order_by(Sample.name).all()
     form = ExperimentForm(obj=experiment)
     form.project_id.choices = _active_project_choices()
+    form.contact_person.choices = _user_name_choices()
     # Ensure current project appears even if archived
     if experiment.project_id not in [c[0] for c in form.project_id.choices]:
         p = experiment.project
@@ -178,7 +277,7 @@ def experiment_edit(id):
         form.populate_obj(experiment)
         db.session.commit()
         flash("Experiment updated.", "success")
-        return redirect(url_for("experiment_edit", id=experiment.id))
+        return redirect(url_for("experiment_detail", id=experiment.id))
     return render_template("experiment/form.html", form=form, experiment=experiment, samples=samples)
 
 
@@ -204,6 +303,12 @@ def species_create():
     return render_template("species/form.html", form=form, species=None)
 
 
+@app.route("/species/<int:id>")
+def species_detail(id):
+    species = db.get_or_404(Species, id)
+    return render_template("species/detail.html", species=species)
+
+
 @app.route("/species/<int:id>/edit", methods=["GET", "POST"])
 def species_edit(id):
     species = db.get_or_404(Species, id)
@@ -212,7 +317,7 @@ def species_edit(id):
         form.populate_obj(species)
         db.session.commit()
         flash("Species updated.", "success")
-        return redirect(url_for("species_list"))
+        return redirect(url_for("species_detail", id=species.id))
     return render_template("species/form.html", form=form, species=species)
 
 
@@ -252,6 +357,12 @@ def cell_line_create():
     return render_template("cell_line/form.html", form=form, cell_line=None)
 
 
+@app.route("/cell-lines/<int:id>")
+def cell_line_detail(id):
+    cl = db.get_or_404(CellLine, id)
+    return render_template("cell_line/detail.html", cell_line=cl)
+
+
 @app.route("/cell-lines/<int:id>/edit", methods=["GET", "POST"])
 def cell_line_edit(id):
     cl = db.get_or_404(CellLine, id)
@@ -269,7 +380,7 @@ def cell_line_edit(id):
         cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         db.session.commit()
         flash("Cell line updated.", "success")
-        return redirect(url_for("cell_line_list"))
+        return redirect(url_for("cell_line_detail", id=cl.id))
     return render_template("cell_line/form.html", form=form, cell_line=cl)
 
 
@@ -298,6 +409,12 @@ def virus_create():
     return render_template("virus/form.html", form=form, virus=None)
 
 
+@app.route("/viruses/<int:id>")
+def virus_detail(id):
+    virus = db.get_or_404(Virus, id)
+    return render_template("virus/detail.html", virus=virus)
+
+
 @app.route("/viruses/<int:id>/edit", methods=["GET", "POST"])
 def virus_edit(id):
     virus = db.get_or_404(Virus, id)
@@ -311,7 +428,7 @@ def virus_edit(id):
             virus.species_id = None
         db.session.commit()
         flash("Virus updated.", "success")
-        return redirect(url_for("virus_list"))
+        return redirect(url_for("virus_detail", id=virus.id))
     return render_template("virus/form.html", form=form, virus=virus)
 
 
@@ -337,6 +454,12 @@ def user_create():
     return render_template("user/form.html", form=form, user=None)
 
 
+@app.route("/users/<int:id>")
+def user_detail(id):
+    user = db.get_or_404(User, id)
+    return render_template("user/detail.html", user=user)
+
+
 @app.route("/users/<int:id>/edit", methods=["GET", "POST"])
 def user_edit(id):
     user = db.get_or_404(User, id)
@@ -345,7 +468,7 @@ def user_edit(id):
         form.populate_obj(user)
         db.session.commit()
         flash("User updated.", "success")
-        return redirect(url_for("user_list"))
+        return redirect(url_for("user_detail", id=user.id))
     return render_template("user/form.html", form=form, user=user)
 
 
@@ -407,6 +530,7 @@ def sample_list():
     samples = (
         Sample.query.join(Experiment)
         .join(Project)
+        .options(joinedload(Sample.experiment).joinedload(Experiment.project))
         .filter(Project.active == True)  # noqa: E712
         .order_by(Sample.name)
         .all()
@@ -447,6 +571,12 @@ def sample_create():
     return render_template("sample/form.html", form=form, sample=None)
 
 
+@app.route("/samples/<int:id>")
+def sample_detail(id):
+    sample = db.get_or_404(Sample, id)
+    return render_template("sample/detail.html", sample=sample)
+
+
 @app.route("/samples/<int:id>/edit", methods=["GET", "POST"])
 def sample_edit(id):
     sample = db.get_or_404(Sample, id)
@@ -481,7 +611,7 @@ def sample_edit(id):
         _nullify_crosslink_fields(sample)
         db.session.commit()
         flash("Sample updated.", "success")
-        return redirect(url_for("experiment_detail", id=sample.experiment_id))
+        return redirect(url_for("sample_detail", id=sample.id))
     return render_template("sample/form.html", form=form, sample=sample)
 
 
@@ -507,7 +637,11 @@ def sample_files(id):
 # ---------------------------------------------------------------------------
 @app.route("/files")
 def file_list():
-    files = File.query.order_by(File.date.desc(), File.filename).all()
+    files = (
+        File.query.options(joinedload(File.sample))
+        .order_by(File.date.desc(), File.filename)
+        .all()
+    )
     return render_template("file/list.html", files=files)
 
 
@@ -518,6 +652,9 @@ def file_create(sample_id):
     if form.validate_on_submit():
         f = File(sample_id=sample_id)
         form.populate_obj(f)
+        f.meta = form.meta_json.data
+        if f.size_bytes is not None:
+            f.size_bytes = f.size_bytes * 1e9
         db.session.add(f)
         db.session.commit()
         flash("File record created.", "success")
@@ -525,16 +662,10 @@ def file_create(sample_id):
     return render_template("file/form.html", form=form, file=None, sample=sample)
 
 
-@app.route("/files/<int:id>/edit", methods=["GET", "POST"])
-def file_edit(id):
+@app.route("/files/<int:id>")
+def file_detail(id):
     f = db.get_or_404(File, id)
-    form = FileForm(obj=f)
-    if form.validate_on_submit():
-        form.populate_obj(f)
-        db.session.commit()
-        flash("File record updated.", "success")
-        return redirect(url_for("sample_edit", id=f.sample_id))
-    return render_template("file/form.html", form=form, file=f, sample=f.sample)
+    return render_template("file/detail.html", file=f)
 
 
 @app.route("/files/<int:id>/delete", methods=["POST"])
@@ -544,4 +675,4 @@ def file_delete(id):
     db.session.delete(f)
     db.session.commit()
     flash("File record deleted.", "success")
-    return redirect(url_for("sample_edit", id=sample_id))
+    return redirect(url_for("sample_detail", id=sample_id))

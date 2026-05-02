@@ -108,7 +108,8 @@ CREATE TABLE sample_cell_line (
 CREATE TABLE user (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
-    initials TEXT
+    initials TEXT,
+    active INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE file (

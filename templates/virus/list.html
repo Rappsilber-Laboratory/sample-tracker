@@ -15,7 +15,7 @@
   <tbody>
     {% for v in viruses %}
     <tr>
-      <td>{{ v.name }}</td>
+      <td><a href="{{ url_for('virus_detail', id=v.id) }}">{{ v.name }}</a></td>
       <td>{{ v.variant or '' }}</td>
       <td>{{ v.species.species_name if v.species else '' }}</td>
       <td><a href="{{ url_for('virus_edit', id=v.id) }}">Edit</a></td>
