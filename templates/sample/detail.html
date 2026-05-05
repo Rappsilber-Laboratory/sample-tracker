@@ -11,7 +11,7 @@
   {{ '%.2f' | format(total_size_gb) }} GB
 </p>
 
-<p><strong>Experiment:</strong> <a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">{{ sample.experiment.name }}</a></p>
+<p><strong>Experiment:</strong> <a href="{{ url_for('experiment_detail', code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></p>
 {% if sample.code %}<p><strong>Code:</strong> {{ sample.code }}</p>{% endif %}
 <p><strong>Type:</strong> {{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</p>
 {% if sample.user_initials %}<p><strong>Contact:</strong> {{ users.get(sample.user_initials, sample.user_initials) }}</p>{% endif %}
@@ -24,7 +24,7 @@
   <h3>New Batch</h3>
   <p>
     <label>Instrument Initial <input type="text" id="batch-instrument"></label>
-    <label>User Initials <input type="text" id="batch-user"></label>
+    <label>User Initials <input type="text" id="batch-user" value="{{ sample.user_initials or '' }}"></label>
     <label>Number of Acquisitions <input type="number" id="batch-count" min="1" value="1"></label>
     <button type="button" id="batch-generate">Generate</button>
   </p>

@@ -24,8 +24,8 @@
   {{ form.hidden_tag() }}
   <fieldset>
     <legend>Associate with</legend>
-    <p>{{ render_field(form.project_id) }}</p>
-    <p>{{ render_field(form.experiment_id) }}</p>
+    <p>{{ render_field(form.project_code) }}</p>
+    <p>{{ render_field(form.experiment_code) }}</p>
     <p>{{ render_field(form.sample_id) }}</p>
   </fieldset>
   <button type="submit">Save</button>
@@ -36,11 +36,11 @@
 {% block scripts %}
 <script>
   const TREE = {{ tree|tojson }};
-  const projectSel = document.getElementById('project_id');
-  const experimentSel = document.getElementById('experiment_id');
+  const projectSel = document.getElementById('project_code');
+  const experimentSel = document.getElementById('experiment_code');
   const sampleSel = document.getElementById('sample_id');
 
-  function fillSelect(sel, options, selectedValue) {
+  function fillSelect(sel, options, valueKey, selectedValue) {
     const current = selectedValue != null ? String(selectedValue) : '';
     sel.innerHTML = '';
     const blank = document.createElement('option');
@@ -49,27 +49,27 @@
     sel.appendChild(blank);
     for (const opt of options) {
       const o = document.createElement('option');
-      o.value = String(opt.id);
+      o.value = String(opt[valueKey]);
       o.textContent = opt.label;
-      if (String(opt.id) === current) o.selected = true;
+      if (String(opt[valueKey]) === current) o.selected = true;
       sel.appendChild(o);
     }
   }
 
-  function refreshExperiments(selectedExperimentId) {
-    const projectId = projectSel.value;
-    const opts = projectId
-      ? TREE.experiments.filter(e => String(e.project_id) === projectId)
+  function refreshExperiments(selectedExperimentCode) {
+    const projectCode = projectSel.value;
+    const opts = projectCode
+      ? TREE.experiments.filter(e => e.project_code === projectCode)
       : [];
-    fillSelect(experimentSel, opts, selectedExperimentId);
+    fillSelect(experimentSel, opts, 'code', selectedExperimentCode);
   }
 
   function refreshSamples(selectedSampleId) {
-    const experimentId = experimentSel.value;
-    const opts = experimentId
-      ? TREE.samples.filter(s => String(s.experiment_id) === experimentId)
+    const experimentCode = experimentSel.value;
+    const opts = experimentCode
+      ? TREE.samples.filter(s => s.experiment_code === experimentCode)
       : [];
-    fillSelect(sampleSel, opts, selectedSampleId);
+    fillSelect(sampleSel, opts, 'id', selectedSampleId);
   }
 
   projectSel.addEventListener('change', () => {
@@ -81,9 +81,9 @@
   });
 
   // Initial cascade: respect any pre-selected values from the server.
-  const initialExperiment = experimentSel.value;
-  const initialSample = sampleSel.value;
-  refreshExperiments(initialExperiment);
-  refreshSamples(initialSample);
+  const initialExperimentCode = experimentSel.value;
+  const initialSampleId = sampleSel.value;
+  refreshExperiments(initialExperimentCode);
+  refreshSamples(initialSampleId);
 </script>
 {% endblock %}

@@ -5,7 +5,7 @@
 <h2>{{ 'Edit' if experiment else 'New' }} Experiment</h2>
 <form method="post">
   {{ form.hidden_tag() }}
-  <p>{{ render_field(form.project_id) }}</p>
+  <p>{{ render_field(form.project_code) }}</p>
   <p>{{ render_field(form.code) }}</p>
   <p>{{ render_field(form.name) }}</p>
   <p>{{ render_field(form.description) }}</p>
@@ -13,7 +13,7 @@
   <p>{{ render_field(form.active) }}</p>
   <button type="submit">Save</button>
   {% if experiment %}
-    <a href="{{ url_for('experiment_detail', id=experiment.id) }}">Cancel</a>
+    <a href="{{ url_for('experiment_detail', code=experiment.code) }}">Cancel</a>
   {% else %}
     <a href="{{ url_for('experiment_list') }}">Cancel</a>
   {% endif %}
@@ -22,7 +22,7 @@
 {% if experiment %}
 <hr>
 <h3>Samples</h3>
-<p><a href="{{ url_for('sample_create', experiment_id=experiment.id) }}">+ New Sample</a></p>
+<p><a href="{{ url_for('sample_create', experiment_code=experiment.code) }}">+ New Sample</a></p>
 <table>
   <thead>
     <tr>

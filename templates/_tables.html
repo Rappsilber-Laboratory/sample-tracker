@@ -2,6 +2,7 @@
 <table>
   <thead>
     <tr>
+      <th>Code</th>
       <th>Name</th>
       {% if show_project %}<th>Project</th>{% endif %}
       <th>Description</th>
@@ -13,15 +14,16 @@
   <tbody>
     {% for experiment in experiments %}
     <tr>
-      <td><a href="{{ url_for('experiment_detail', id=experiment.id) }}">{{ experiment.name }}</a></td>
-      {% if show_project %}<td><a href="{{ url_for('project_detail', id=experiment.project.id) }}">{{ experiment.project.name }}</a></td>{% endif %}
+      <td>{{ experiment.code }}</td>
+      <td><a href="{{ url_for('experiment_detail', code=experiment.code) }}">{{ experiment.name }}</a></td>
+      {% if show_project %}<td><a href="{{ url_for('project_detail', code=experiment.project.code) }}">{{ experiment.project.name }}</a></td>{% endif %}
       <td>{{ experiment.description or '' }}</td>
       <td>{{ users.get(experiment.user_initials, experiment.user_initials) if experiment.user_initials else '' }}</td>
       {% if show_samples %}<td>{{ experiment.samples | length }}</td>{% endif %}
-      <td><a href="{{ url_for('experiment_edit', id=experiment.id) }}">Edit</a></td>
+      <td><a href="{{ url_for('experiment_edit', code=experiment.code) }}">Edit</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="{{ 5 + (1 if show_project else 0) + (1 if show_samples else 0) }}">No experiments found.</td></tr>
+    <tr><td colspan="{{ 6 + (1 if show_project else 0) + (1 if show_samples else 0) }}">No experiments found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -29,10 +31,11 @@
 
 
 {% macro sample_table(samples, show_experiment=true, show_project=true, users={}) %}
-{% set colspan = 5 + (1 if show_experiment else 0) + (1 if show_project else 0) %}
+{% set colspan = 6 + (1 if show_experiment else 0) + (1 if show_project else 0) %}
 <table>
   <thead>
     <tr>
+      <th>Code</th>
       <th>Name</th>
       {% if show_project %}<th>Project</th>{% endif %}
       {% if show_experiment %}<th>Experiment</th>{% endif %}
@@ -45,9 +48,10 @@
   <tbody>
     {% for sample in samples %}
     <tr>
+      <td>{{ sample.code or '' }}</td>
       <td><a href="{{ url_for('sample_detail', id=sample.id) }}">{{ sample.name }}</a></td>
-      {% if show_project %}<td><a href="{{ url_for('project_detail', id=sample.experiment.project_id) }}">{{ sample.experiment.project.name }}</a></td>{% endif %}
-      {% if show_experiment %}<td><a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">{{ sample.experiment.name }}</a></td>{% endif %}
+      {% if show_project %}<td><a href="{{ url_for('project_detail', code=sample.experiment.project_code) }}">{{ sample.experiment.project.name }}</a></td>{% endif %}
+      {% if show_experiment %}<td><a href="{{ url_for('experiment_detail', code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></td>{% endif %}
       <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
       <td>{{ sample.description or '' }}</td>
       <td>{{ users.get(sample.user_initials, sample.user_initials) if sample.user_initials else '—' }}</td>
@@ -95,8 +99,8 @@
     <tr>
       <td>{{ f.date or '' }}</td>
       <td><a href="{{ url_for('file_detail', id=f.id) }}">{% if f.sample %}{{ highlight_codes(f.filename or f.id|string, f.sample.experiment.project.code, f.sample.experiment.code, f.sample.code) }}{% else %}{{ f.filename or f.id }}{% endif %}</a></td>
-      <td>{% if f.sample %}<a href="{{ url_for('project_detail', id=f.sample.experiment.project_id) }}">{{ f.sample.experiment.project.name }}</a>{% else %}—{% endif %}</td>
-      <td>{% if f.sample %}<a href="{{ url_for('experiment_detail', id=f.sample.experiment_id) }}">{{ f.sample.experiment.name }}</a>{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('project_detail', code=f.sample.experiment.project_code) }}">{{ f.sample.experiment.project.name }}</a>{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('experiment_detail', code=f.sample.experiment_code) }}">{{ f.sample.experiment.name }}</a>{% else %}—{% endif %}</td>
       <td>{% if f.sample %}<a href="{{ url_for('sample_detail', id=f.sample_id) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>
       <td>{{ users.get(f.user_initials, f.user_initials) if f.user_initials else '—' }}</td>
       <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>

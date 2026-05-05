@@ -4,21 +4,19 @@
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE project (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code TEXT NOT NULL,
+    code TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
     description TEXT,
-    user_initials TEXT,
+    user_initials TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE experiment (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL REFERENCES project(id),
-    code TEXT,
+    code TEXT NOT NULL PRIMARY KEY,
+    project_code TEXT NOT NULL REFERENCES project(code),
     name TEXT NOT NULL,
     description TEXT,
-    user_initials TEXT,
+    user_initials TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1
 );
 
@@ -37,10 +35,10 @@ CREATE TABLE cell_line (
 
 CREATE TABLE mass_spec_sample (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    experiment_id INTEGER NOT NULL REFERENCES experiment(id),
+    experiment_code TEXT NOT NULL REFERENCES experiment(code),
     name TEXT NOT NULL,
     description TEXT,
-    user_initials TEXT,
+    user_initials TEXT NOT NULL,
     disease TEXT,
     phenotype TEXT,
     isotope_labeling_channel TEXT,
@@ -78,7 +76,7 @@ CREATE TABLE mass_spec_sample (
     -- IdentificationSample columns (used when crosslinked_sample = 0)
     peptide_level_fraction TEXT,
 
-    code TEXT
+    code TEXT NOT NULL
 );
 
 CREATE TABLE virus (

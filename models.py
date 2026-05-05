@@ -18,20 +18,17 @@ sample_species = db.Table(
 sample_cell_line = db.Table(
     "sample_cell_line",
     db.Column("sample_id", db.Integer, db.ForeignKey("mass_spec_sample.id"), primary_key=True),
-    db.Column(
-        "cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True
-    ),
+    db.Column("cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True),
 )
 
 
 class Project(db.Model):
     __tablename__ = "project"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    code = db.Column(db.Text, nullable=False)
+    code = db.Column(db.Text, primary_key=True, nullable=False)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
-    user_initials = db.Column(db.Text)
+    user_initials = db.Column(db.Text, nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
     experiments = db.relationship("Experiment", back_populates="project")
@@ -40,12 +37,11 @@ class Project(db.Model):
 class Experiment(db.Model):
     __tablename__ = "experiment"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    project_id = db.Column(db.Integer, db.ForeignKey("project.id"), nullable=False)
-    code = db.Column(db.Text)
+    code = db.Column(db.Text, primary_key=True, nullable=False)
+    project_code = db.Column(db.Text, db.ForeignKey("project.code"), nullable=False)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
-    user_initials = db.Column(db.Text)
+    user_initials = db.Column(db.Text, nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
     project = db.relationship("Project", back_populates="experiments")
@@ -89,12 +85,11 @@ class MassSpecSample(db.Model):
     __tablename__ = "mass_spec_sample"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    experiment_id = db.Column(
-        db.Integer, db.ForeignKey("experiment.id"), nullable=False
-    )
+    experiment_code = db.Column(db.Text, db.ForeignKey("experiment.code"), nullable=False)
+    code = db.Column(db.Text, nullable=False)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
-    user_initials = db.Column(db.Text)
+    user_initials = db.Column(db.Text, nullable=False)
     disease = db.Column(db.Text)
     phenotype = db.Column(db.Text)
     isotope_labeling_channel = db.Column(db.Text)
@@ -131,8 +126,6 @@ class MassSpecSample(db.Model):
 
     # IdentificationSample columns (crosslinked_sample = 0)
     peptide_level_fraction = db.Column(db.Text)
-
-    code = db.Column(db.Text)
 
     # Polymorphic identity
     __mapper_args__ = {

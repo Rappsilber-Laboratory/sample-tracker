@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Instrument Usage{% endblock %}
+{% block content %}
+<h2>Instrument Usage</h2>
+<div id="charts"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script>
+const data = {{ data | tojson }};
+
+const margin = {top: 20, right: 20, bottom: 70, left: 70};
+const width = 800 - margin.left - margin.right;
+const height = 320 - margin.top - margin.bottom;
+
+const container = document.getElementById('charts');
+
+// Shared tooltip
+const tooltip = d3.select('body').append('div')
+  .style('position', 'fixed')
+  .style('background', 'rgba(0,0,0,0.75)')
+  .style('color', '#fff')
+  .style('padding', '4px 8px')
+  .style('border-radius', '4px')
+  .style('font-size', '12px')
+  .style('pointer-events', 'none')
+  .style('display', 'none');
+
+// Build a single colour scale across all projects so colours are consistent across charts
+const allProjects = [...new Set(Object.values(data).flat().map(r => r.project))].sort();
+const colour = d3.scaleOrdinal(d3.schemeTableau10).domain(allProjects);
+
+for (const [instrument, records] of Object.entries(data)) {
+  // Collect unique sorted dates and project codes
+  const dates = [...new Set(records.map(r => r.date))].sort();
+  const projects = [...new Set(records.map(r => r.project))].sort();
+
+  // Pivot: one object per date, keyed by project
+  const byDate = Object.fromEntries(dates.map(d => [d, {date: d}]));
+  for (const r of records) {
+    byDate[r.date][r.project] = (byDate[r.date][r.project] || 0) + r.gb;
+  }
+  const pivoted = dates.map(d => byDate[d]);
+
+  // Stack
+  const stack = d3.stack().keys(projects).value((d, k) => d[k] || 0);
+  const series = stack(pivoted);
+
+  // Scales
+  const x = d3.scaleBand().domain(dates).range([0, width]).padding(0.15);
+  const yMax = d3.max(pivoted, d => projects.reduce((s, p) => s + (d[p] || 0), 0));
+  const y = d3.scaleLinear().domain([0, yMax * 1.05]).nice().range([height, 0]);
+
+  // Container
+  const wrapper = document.createElement('div');
+  wrapper.style.marginBottom = '2rem';
+
+  const title = document.createElement('h3');
+  title.textContent = instrument;
+  wrapper.appendChild(title);
+
+  const svg = d3.select(wrapper).append('svg')
+    .attr('width', width + margin.left + margin.right)
+    .attr('height', height + margin.top + margin.bottom)
+    .append('g')
+    .attr('transform', `translate(${margin.left},${margin.top})`);
+
+  // Bars
+  svg.selectAll('g.layer')
+    .data(series)
+    .join('g')
+      .attr('class', 'layer')
+      .attr('fill', d => colour(d.key))
+    .selectAll('rect')
+    .data(d => d)
+    .join('rect')
+      .attr('x', d => x(d.data.date))
+      .attr('y', d => y(d[1]))
+      .attr('height', d => y(d[0]) - y(d[1]))
+      .attr('width', x.bandwidth())
+      .on('mousemove', function(event, d) {
+        tooltip
+          .style('display', 'block')
+          .style('left', (event.clientX + 12) + 'px')
+          .style('top',  (event.clientY - 28) + 'px')
+          .text(d3.select(this.parentNode).datum().key);
+      })
+      .on('mouseleave', () => tooltip.style('display', 'none'));
+
+  // X axis — show a tick every N dates to avoid crowding
+  const tickEvery = Math.max(1, Math.ceil(dates.length / 20));
+  const xAxis = d3.axisBottom(x)
+    .tickValues(dates.filter((_, i) => i % tickEvery === 0));
+
+  svg.append('g')
+    .attr('transform', `translate(0,${height})`)
+    .call(xAxis)
+    .selectAll('text')
+      .attr('transform', 'rotate(-45)')
+      .style('text-anchor', 'end');
+
+  // Y axis
+  svg.append('g').call(d3.axisLeft(y));
+
+  // Y axis label
+  svg.append('text')
+    .attr('transform', 'rotate(-90)')
+    .attr('y', -margin.left + 15)
+    .attr('x', -height / 2)
+    .attr('text-anchor', 'middle')
+    .style('font-size', '12px')
+    .text('GB acquired');
+
+  // Legend
+  const legend = d3.select(wrapper).append('div')
+    .style('display', 'flex')
+    .style('flex-wrap', 'wrap')
+    .style('gap', '0.5rem')
+    .style('margin-top', '0.25rem');
+
+  projects.forEach(p => {
+    const item = legend.append('span')
+      .style('display', 'inline-flex')
+      .style('align-items', 'center')
+      .style('gap', '4px')
+      .style('font-size', '12px');
+    item.append('span')
+      .style('display', 'inline-block')
+      .style('width', '12px')
+      .style('height', '12px')
+      .style('background', colour(p))
+      .style('flex-shrink', '0');
+    item.append('span').text(p);
+  });
+
+  container.appendChild(wrapper);
+}
+</script>
+{% endblock %}

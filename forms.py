@@ -16,16 +16,16 @@ class ProjectForm(FlaskForm):
     code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[Optional()])
-    user_initials = SelectField("Contact Person", validators=[Optional()], coerce=str)
+    user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
     active = BooleanField("Active", default=True)
 
 
 class ExperimentForm(FlaskForm):
-    project_id = SelectField("Project", coerce=int, validators=[DataRequired()])
-    code = StringField("Code", validators=[Optional()])
+    project_code = SelectField("Project", coerce=str, validators=[DataRequired()])
+    code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[Optional()])
-    user_initials = SelectField("Contact Person", validators=[Optional()], coerce=str)
+    user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
     active = BooleanField("Active", default=True)
 
 
@@ -59,11 +59,11 @@ class UserForm(FlaskForm):
 
 
 class MassSpecSampleForm(FlaskForm):
-    experiment_id = SelectField("Experiment", coerce=int, validators=[DataRequired()])
-    code = StringField("Code", validators=[Optional()])
+    experiment_code = SelectField("Experiment", coerce=str, validators=[DataRequired()])
+    code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[Optional()])
-    user_initials = StringField("User Initials", validators=[Optional()])
+    user_initials = SelectField("Contact Person", coerce=str, validators=[DataRequired()])
     disease = StringField("Disease", default="N/A", validators=[Optional()])
     phenotype = StringField("Phenotype", default="N/A", validators=[Optional()])
     isotope_labeling_channel = StringField(
@@ -172,14 +172,20 @@ def _optional_int(value):
     return int(value)
 
 
+def _optional_str(value):
+    if value in (None, "", "None"):
+        return None
+    return str(value)
+
+
 class MassSpecAcquisitionEditForm(FlaskForm):
     # validate_choice=False: the experiment/sample option lists are populated
-    # client-side from an embedded tree, so any id present in the DB is valid.
-    project_id = SelectField(
-        "Project", coerce=_optional_int, validators=[Optional()], validate_choice=False
+    # client-side from an embedded tree, so any code present in the DB is valid.
+    project_code = SelectField(
+        "Project", coerce=_optional_str, validators=[Optional()], validate_choice=False
     )
-    experiment_id = SelectField(
-        "Experiment", coerce=_optional_int, validators=[Optional()], validate_choice=False
+    experiment_code = SelectField(
+        "Experiment", coerce=_optional_str, validators=[Optional()], validate_choice=False
     )
     sample_id = SelectField(
         "Sample", coerce=_optional_int, validators=[Optional()], validate_choice=False

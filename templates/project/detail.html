@@ -4,7 +4,7 @@
 {% block content %}
 <h2>Project: {{ project.code }} — {{ project.name }}</h2>
 <p>
-  <a href="{{ url_for('project_edit', id=project.id) }}">Edit Project</a>
+  <a href="{{ url_for('project_edit', code=project.code) }}">Edit Project</a>
 </p>
 
 {% if project.description %}<p>{{ project.description }}</p>{% endif %}
@@ -19,7 +19,7 @@
 
 <details open>
   <summary>Experiments</summary>
-  <p><a href="{{ url_for('experiment_create', project_id=project.id) }}">New Experiment</a></p>
+  <p><a href="{{ url_for('experiment_create', project_code=project.code) }}">New Experiment</a></p>
   {{ experiment_table(experiments, show_project=false, users=users) }}
 </details>
 
