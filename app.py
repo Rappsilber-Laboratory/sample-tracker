@@ -210,12 +210,31 @@ def project_detail(code):
         .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
+    chart_rows = (
+        db.session.query(
+            MassSpecAcquisition.date,
+            Experiment.code.label("experiment_code"),
+            func.sum(MassSpecAcquisition.size_bytes).label("total_bytes"),
+        )
+        .join(MassSpecSample, MassSpecAcquisition.sample_id == MassSpecSample.id)
+        .join(Experiment, MassSpecSample.experiment_code == Experiment.code)
+        .filter(Experiment.project_code == code)
+        .filter(MassSpecAcquisition.date.isnot(None))
+        .group_by(MassSpecAcquisition.date, Experiment.code)
+        .order_by(MassSpecAcquisition.date)
+        .all()
+    )
+    chart_data = [
+        {"date": row.date.isoformat(), "experiment": row.experiment_code, "gb": round((row.total_bytes or 0) / 1e9, 4)}
+        for row in chart_rows
+    ]
     users = {u.initials: u.name for u in User.query.all()}
     return render_template(
         "project/detail.html", project=project, experiments=experiments,
         contact_name=contact_name, samples=samples, files=files,
         experiment_count=len(experiments), sample_count=len(samples),
         file_count=len(files), total_size_gb=total_size_gb, users=users,
+        chart_data=chart_data,
     )
 
 
