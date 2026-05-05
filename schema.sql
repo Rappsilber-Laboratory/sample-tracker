@@ -1,4 +1,4 @@
--- Sample Tracker SQLite Schema
+-- Mass Spec Acquisition Tracker SQLite Schema
 -- Based on sampleTracker13.dia UML diagram
 
 PRAGMA foreign_keys = ON;

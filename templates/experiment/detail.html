@@ -10,7 +10,7 @@
 <p><strong>Project:</strong> <a href="{{ url_for('project_detail', id=experiment.project.id) }}">{{ experiment.project.code }} — {{ experiment.project.name }}</a></p>
 {% if experiment.code %}<p><strong>Code:</strong> {{ experiment.code }}</p>{% endif %}
 {% if experiment.description %}<p>{{ experiment.description }}</p>{% endif %}
-{% if experiment.user_initials %}<p><strong>Contact:</strong> {{ experiment.user_initials }}</p>{% endif %}
+{% if experiment.user_initials %}<p><strong>Contact:</strong> {{ users.get(experiment.user_initials, experiment.user_initials) }}</p>{% endif %}
 {% if not experiment.active %}<p><strong>Status:</strong> Inactive</p>{% endif %}
 <p><strong>Summary:</strong>
   {{ sample_count }} sample{{ '' if sample_count == 1 else 's' }},
@@ -21,11 +21,11 @@
 <details>
   <summary>Samples</summary>
   <p><a href="{{ url_for('sample_create', experiment_id=experiment.id) }}">New Sample</a></p>
-  {{ sample_table(samples, show_experiment=false, show_project=false) }}
+  {{ sample_table(samples, show_experiment=false, show_project=false, users=users) }}
 </details>
 
 <details>
   <summary>Files</summary>
-  {{ file_table(files) }}
+  {{ file_table(files, users) }}
 </details>
 {% endblock %}

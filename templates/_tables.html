@@ -1,11 +1,12 @@
-{% macro experiment_table(experiments, show_project=true) %}
+{% macro experiment_table(experiments, show_project=true, show_samples=true, users={}) %}
 <table>
   <thead>
     <tr>
       <th>Name</th>
       {% if show_project %}<th>Project</th>{% endif %}
-      <th>Contact</th>
       <th>Description</th>
+      <th>Contact</th>
+      {% if show_samples %}<th>Samples</th>{% endif %}
       <th></th>
     </tr>
   </thead>
@@ -14,28 +15,30 @@
     <tr>
       <td><a href="{{ url_for('experiment_detail', id=experiment.id) }}">{{ experiment.name }}</a></td>
       {% if show_project %}<td><a href="{{ url_for('project_detail', id=experiment.project.id) }}">{{ experiment.project.name }}</a></td>{% endif %}
-      <td>{{ experiment.user_initials or '' }}</td>
       <td>{{ experiment.description or '' }}</td>
+      <td>{{ users.get(experiment.user_initials, experiment.user_initials) if experiment.user_initials else '' }}</td>
+      {% if show_samples %}<td>{{ experiment.samples | length }}</td>{% endif %}
       <td><a href="{{ url_for('experiment_edit', id=experiment.id) }}">Edit</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="{{ 5 if show_project else 4 }}">No experiments found.</td></tr>
+    <tr><td colspan="{{ 5 + (1 if show_project else 0) + (1 if show_samples else 0) }}">No experiments found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 {% endmacro %}
 
 
-{% macro sample_table(samples, show_experiment=true, show_project=true) %}
-{% set colspan = 4 + (1 if show_experiment else 0) + (1 if show_project else 0) %}
+{% macro sample_table(samples, show_experiment=true, show_project=true, users={}) %}
+{% set colspan = 5 + (1 if show_experiment else 0) + (1 if show_project else 0) %}
 <table>
   <thead>
     <tr>
       <th>Name</th>
-      {% if show_experiment %}<th>Experiment</th>{% endif %}
       {% if show_project %}<th>Project</th>{% endif %}
+      {% if show_experiment %}<th>Experiment</th>{% endif %}
       <th>Type</th>
       <th>Description</th>
+      <th>Contact</th>
       <th></th>
     </tr>
   </thead>
@@ -43,10 +46,11 @@
     {% for sample in samples %}
     <tr>
       <td><a href="{{ url_for('sample_detail', id=sample.id) }}">{{ sample.name }}</a></td>
-      {% if show_experiment %}<td><a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">{{ sample.experiment.name }}</a></td>{% endif %}
       {% if show_project %}<td><a href="{{ url_for('project_detail', id=sample.experiment.project_id) }}">{{ sample.experiment.project.name }}</a></td>{% endif %}
+      {% if show_experiment %}<td><a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">{{ sample.experiment.name }}</a></td>{% endif %}
       <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
       <td>{{ sample.description or '' }}</td>
+      <td>{{ users.get(sample.user_initials, sample.user_initials) if sample.user_initials else '—' }}</td>
       <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
     </tr>
     {% else %}
@@ -61,7 +65,7 @@
   {%- set name = filename or '' -%}
   {%- if s_code -%}{%- set name = name|replace(s_code, '\x01s\x02' ~ s_code ~ '\x03') -%}{%- endif -%}
   {%- if e_code -%}{%- set name = name|replace(e_code, '\x01e\x02' ~ e_code ~ '\x03') -%}{%- endif -%}
-  {%- if p_code -%}{%- set name = name|replace(p_code, '\x01p\x02' ~ p_code ~ '\x03') -%}{%- endif -%}
+  {%- if p_code -%}{%- set name = name|replace_first(p_code, '\x01p\x02' ~ p_code ~ '\x03') -%}{%- endif -%}
   {%- set name = name|e
         |replace('\x01p\x02', '<span class="hl-project">'|safe)
         |replace('\x01e\x02', '<span class="hl-experiment">'|safe)
@@ -71,17 +75,16 @@
 {%- endmacro %}
 
 
-{% macro file_table(files) %}
+{% macro file_table(files, users={}) %}
 <table>
   <thead>
     <tr>
+      <th>Date</th>
       <th>File</th>
-      <th>Project code</th>
-      <th>Experiment code</th>
-      <th>Sample code</th>
       <th>Project</th>
       <th>Experiment</th>
       <th>Sample</th>
+      <th>Contact</th>
       <th>Size (GB)</th>
       <th>Scans</th>
       <th></th>
@@ -90,19 +93,18 @@
   <tbody>
     {% for f in files %}
     <tr>
+      <td>{{ f.date or '' }}</td>
       <td><a href="{{ url_for('file_detail', id=f.id) }}">{% if f.sample %}{{ highlight_codes(f.filename or f.id|string, f.sample.experiment.project.code, f.sample.experiment.code, f.sample.code) }}{% else %}{{ f.filename or f.id }}{% endif %}</a></td>
-      <td>{% if f.sample %}{{ f.sample.experiment.project.code or '' }}{% else %}—{% endif %}</td>
-      <td>{% if f.sample %}{{ f.sample.experiment.code or '' }}{% else %}—{% endif %}</td>
-      <td>{% if f.sample %}{{ f.sample.code or '' }}{% else %}—{% endif %}</td>
       <td>{% if f.sample %}<a href="{{ url_for('project_detail', id=f.sample.experiment.project_id) }}">{{ f.sample.experiment.project.name }}</a>{% else %}—{% endif %}</td>
       <td>{% if f.sample %}<a href="{{ url_for('experiment_detail', id=f.sample.experiment_id) }}">{{ f.sample.experiment.name }}</a>{% else %}—{% endif %}</td>
       <td>{% if f.sample %}<a href="{{ url_for('sample_detail', id=f.sample_id) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>
+      <td>{{ users.get(f.user_initials, f.user_initials) if f.user_initials else '—' }}</td>
       <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>
       <td>{{ f.scan_count or '' }}</td>
       <td><a href="{{ url_for('file_edit', id=f.id) }}">Edit</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="11">No file records found.</td></tr>
+    <tr><td colspan="9">No file records found.</td></tr>
     {% endfor %}
   </tbody>
 </table>

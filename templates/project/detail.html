@@ -20,16 +20,16 @@
 <details open>
   <summary>Experiments</summary>
   <p><a href="{{ url_for('experiment_create', project_id=project.id) }}">New Experiment</a></p>
-  {{ experiment_table(experiments, show_project=false) }}
+  {{ experiment_table(experiments, show_project=false, users=users) }}
 </details>
 
 <details>
   <summary>Samples</summary>
-  {{ sample_table(samples, show_project=false) }}
+  {{ sample_table(samples, show_project=false, users=users) }}
 </details>
 
 <details>
   <summary>Files</summary>
-  {{ file_table(files) }}
+  {{ file_table(files, users) }}
 </details>
 {% endblock %}

@@ -38,6 +38,11 @@ db.init_app(app)
 CSRFProtect(app)
 
 
+@app.template_filter('replace_first')
+def replace_first_filter(s, old, new):
+    return s.replace(old, new, 1)
+
+
 @app.context_processor
 def inject_nav_counts():
     try:
@@ -128,7 +133,7 @@ def api_tree():
     projects = Project.query.filter_by(active=True).all()
     project_nodes = sorted([project_node(p) for p in projects], key=lambda n: n["total_bytes"], reverse=True)
     tree = {
-        "name": "File Tracker",
+        "name": "Mass Spec Acquisition Tracker",
         "level": "root",
         "total_bytes": sum(n["total_bytes"] for n in project_nodes),
         "children": project_nodes,
@@ -194,11 +199,12 @@ def project_detail(id):
         .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
+    users = {u.initials: u.name for u in User.query.all()}
     return render_template(
         "project/detail.html", project=project, experiments=experiments,
         contact_name=contact_name, samples=samples, files=files,
         experiment_count=len(experiments), sample_count=len(samples),
-        file_count=len(files), total_size_gb=total_size_gb,
+        file_count=len(files), total_size_gb=total_size_gb, users=users,
     )
 
 
@@ -260,7 +266,8 @@ def experiment_list():
         .order_by(Experiment.name)
         .all()
     )
-    return render_template("experiment/list.html", experiments=experiments)
+    users = {u.initials: u.name for u in User.query.all()}
+    return render_template("experiment/list.html", experiments=experiments, users=users)
 
 
 @app.route("/experiments/<int:id>")
@@ -274,9 +281,10 @@ def experiment_detail(id):
         .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
+    users = {u.initials: u.name for u in User.query.all()}
     return render_template(
         "experiment/detail.html", experiment=experiment, samples=samples, files=files,
-        sample_count=len(samples), file_count=len(files), total_size_gb=total_size_gb,
+        sample_count=len(samples), file_count=len(files), total_size_gb=total_size_gb, users=users,
     )
 
 
@@ -570,7 +578,8 @@ def sample_list():
         .order_by(MassSpecSample.name)
         .all()
     )
-    return render_template("sample/list.html", samples=samples)
+    users = {u.initials: u.name for u in User.query.all()}
+    return render_template("sample/list.html", samples=samples, users=users)
 
 
 @app.route("/samples/new", methods=["GET", "POST"])
@@ -610,9 +619,10 @@ def sample_create():
 def sample_detail(id):
     sample = db.get_or_404(MassSpecSample, id)
     total_size_gb = sum(f.size_bytes or 0 for f in sample.files) / (1024 ** 3)
+    users = {u.initials: u.name for u in User.query.all()}
     return render_template(
         "sample/detail.html", sample=sample,
-        file_count=len(sample.files), total_size_gb=total_size_gb,
+        file_count=len(sample.files), total_size_gb=total_size_gb, users=users,
     )
 
 
@@ -666,7 +676,8 @@ def file_list():
         .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename)
         .all()
     )
-    return render_template("file/list.html", files=files)
+    users = {u.initials: u.name for u in User.query.all()}
+    return render_template("file/list.html", files=files, users=users)
 
 
 @app.route("/samples/<int:sample_id>/db-files/new", methods=["GET", "POST"])
@@ -753,3 +764,8 @@ def file_delete(id):
     db.session.commit()
     flash("File record deleted.", "success")
     return redirect(url_for("sample_detail", id=sample_id))
+
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
