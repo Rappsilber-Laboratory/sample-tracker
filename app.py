@@ -7,14 +7,13 @@ from flask_wtf import CSRFProtect
 from sqlalchemy.orm import joinedload
 
 from config import Config
-from fileInfoScript import SpectraAddressBook
 from forms import (
     CellLineForm,
     ExperimentForm,
-    FileEditForm,
-    FileForm,
+    MassSpecAcquisitionEditForm,
+    MassSpecAcquisitionForm,
+    MassSpecSampleForm,
     ProjectForm,
-    SampleForm,
     SpeciesForm,
     UserForm,
     VirusForm,
@@ -23,10 +22,10 @@ from models import (
     CellLine,
     CrosslinkSample,
     Experiment,
-    File,
     IdentificationSample,
+    MassSpecAcquisition,
+    MassSpecSample,
     Project,
-    Sample,
     Species,
     User,
     Virus,
@@ -46,11 +45,11 @@ def inject_nav_counts():
             "nav_counts": {
                 "projects": db.session.query(Project).count(),
                 "experiments": db.session.query(Experiment).count(),
-                "samples": db.session.query(Sample).count(),
+                "samples": db.session.query(MassSpecSample).count(),
                 "species": db.session.query(Species).count(),
                 "cell_lines": db.session.query(CellLine).count(),
                 "viruses": db.session.query(Virus).count(),
-                "files": db.session.query(File).count(),
+                "files": db.session.query(MassSpecAcquisition).count(),
                 "users": db.session.query(User).count(),
             }
         }
@@ -82,12 +81,12 @@ def index():
     counts = {
         "projects": db.session.query(Project).count(),
         "experiments": db.session.query(Experiment).count(),
-        "samples": db.session.query(Sample).count(),
+        "samples": db.session.query(MassSpecSample).count(),
         "species": db.session.query(Species).count(),
         "cell_lines": db.session.query(CellLine).count(),
         "viruses": db.session.query(Virus).count(),
         "users": db.session.query(User).count(),
-        "files": db.session.query(File).count(),
+        "files": db.session.query(MassSpecAcquisition).count(),
     }
     return render_template("index.html", counts=counts)
 
@@ -164,6 +163,8 @@ def project_toggle_active(id):
     project = db.get_or_404(Project, id)
     project.active = not project.active
     db.session.commit()
+    if request.accept_mimetypes.accept_json and not request.accept_mimetypes.accept_html:
+        return {"active": project.active}
     show_archived = request.args.get("show_archived", "0")
     return redirect(url_for("project_list", show_archived=show_archived))
 
@@ -175,22 +176,22 @@ def project_detail(id):
         Experiment.query.filter_by(project_id=id).order_by(Experiment.name).all()
     )
     contact_user = (
-        User.query.filter_by(initials=project.contact_person_initials).first()
-        if project.contact_person_initials
+        User.query.filter_by(initials=project.user_initials).first()
+        if project.user_initials
         else None
     )
-    contact_name = contact_user.name if contact_user else project.contact_person_initials
+    contact_name = contact_user.name if contact_user else project.user_initials
     samples = (
-        Sample.query.join(Experiment)
-        .options(joinedload(Sample.experiment))
+        MassSpecSample.query.join(Experiment)
+        .options(joinedload(MassSpecSample.experiment))
         .filter(Experiment.project_id == id)
-        .order_by(Sample.name).all()
+        .order_by(MassSpecSample.name).all()
     )
     files = (
-        File.query.join(Sample).join(Experiment)
-        .options(joinedload(File.sample).joinedload(Sample.experiment).joinedload(Experiment.project))
+        MassSpecAcquisition.query.join(MassSpecSample).join(Experiment)
+        .options(joinedload(MassSpecAcquisition.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
         .filter(Experiment.project_id == id)
-        .order_by(File.date.desc(), File.filename).all()
+        .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
     return render_template(
@@ -204,7 +205,7 @@ def project_detail(id):
 @app.route("/projects/new", methods=["GET", "POST"])
 def project_create():
     form = ProjectForm()
-    form.contact_person_initials.choices = _user_initials_choices()
+    form.user_initials.choices = _user_initials_choices()
     if form.validate_on_submit():
         project = Project()
         form.populate_obj(project)
@@ -219,7 +220,7 @@ def project_create():
 def project_edit(id):
     project = db.get_or_404(Project, id)
     form = ProjectForm(obj=project)
-    form.contact_person_initials.choices = _user_initials_choices()
+    form.user_initials.choices = _user_initials_choices()
     if form.validate_on_submit():
         form.populate_obj(project)
         db.session.commit()
@@ -265,12 +266,12 @@ def experiment_list():
 @app.route("/experiments/<int:id>")
 def experiment_detail(id):
     experiment = db.get_or_404(Experiment, id)
-    samples = Sample.query.filter_by(experiment_id=id).order_by(Sample.name).all()
+    samples = MassSpecSample.query.filter_by(experiment_id=id).order_by(MassSpecSample.name).all()
     files = (
-        File.query.join(Sample)
-        .options(joinedload(File.sample).joinedload(Sample.experiment).joinedload(Experiment.project))
-        .filter(Sample.experiment_id == id)
-        .order_by(File.date.desc(), File.filename).all()
+        MassSpecAcquisition.query.join(MassSpecSample)
+        .options(joinedload(MassSpecAcquisition.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
+        .filter(MassSpecSample.experiment_id == id)
+        .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
     return render_template(
@@ -283,7 +284,7 @@ def experiment_detail(id):
 def experiment_create():
     form = ExperimentForm()
     form.project_id.choices = _active_project_choices()
-    form.contact_person.choices = _user_name_choices()
+    form.user_initials.choices = _user_initials_choices()
     if request.method == "GET" and request.args.get("project_id"):
         form.project_id.data = int(request.args["project_id"])
     if form.validate_on_submit():
@@ -299,10 +300,10 @@ def experiment_create():
 @app.route("/experiments/<int:id>/edit", methods=["GET", "POST"])
 def experiment_edit(id):
     experiment = db.get_or_404(Experiment, id)
-    samples = Sample.query.filter_by(experiment_id=id).order_by(Sample.name).all()
+    samples = MassSpecSample.query.filter_by(experiment_id=id).order_by(MassSpecSample.name).all()
     form = ExperimentForm(obj=experiment)
     form.project_id.choices = _active_project_choices()
-    form.contact_person.choices = _user_name_choices()
+    form.user_initials.choices = _user_initials_choices()
     # Ensure current project appears even if archived
     if experiment.project_id not in [c[0] for c in form.project_id.choices]:
         p = experiment.project
@@ -488,21 +489,21 @@ def user_create():
     return render_template("user/form.html", form=form, user=None)
 
 
-@app.route("/users/<int:id>")
-def user_detail(id):
-    user = db.get_or_404(User, id)
+@app.route("/users/<initials>")
+def user_detail(initials):
+    user = db.get_or_404(User, initials)
     return render_template("user/detail.html", user=user)
 
 
-@app.route("/users/<int:id>/edit", methods=["GET", "POST"])
-def user_edit(id):
-    user = db.get_or_404(User, id)
+@app.route("/users/<initials>/edit", methods=["GET", "POST"])
+def user_edit(initials):
+    user = db.get_or_404(User, initials)
     form = UserForm(obj=user)
     if form.validate_on_submit():
         form.populate_obj(user)
         db.session.commit()
         flash("User updated.", "success")
-        return redirect(url_for("user_detail", id=user.id))
+        return redirect(url_for("user_detail", initials=user.initials))
     return render_template("user/form.html", form=form, user=user)
 
 
@@ -512,7 +513,7 @@ def user_edit(id):
 def _experiment_choices():
     experiments = (
         Experiment.query.join(Project)
-        .filter(Project.active == True)  # noqa: E712
+        .filter(Project.active == True, Experiment.active == True)  # noqa: E712
         .order_by(Experiment.name)
         .all()
     )
@@ -562,11 +563,11 @@ def _nullify_crosslink_fields(sample):
 @app.route("/samples")
 def sample_list():
     samples = (
-        Sample.query.join(Experiment)
+        MassSpecSample.query.join(Experiment)
         .join(Project)
-        .options(joinedload(Sample.experiment).joinedload(Experiment.project))
+        .options(joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
         .filter(Project.active == True)  # noqa: E712
-        .order_by(Sample.name)
+        .order_by(MassSpecSample.name)
         .all()
     )
     return render_template("sample/list.html", samples=samples)
@@ -574,7 +575,7 @@ def sample_list():
 
 @app.route("/samples/new", methods=["GET", "POST"])
 def sample_create():
-    form = SampleForm()
+    form = MassSpecSampleForm()
     form.experiment_id.choices = _experiment_choices()
     form.species_ids.choices = _species_multi_choices()
     form.cell_line_ids.choices = _cell_line_multi_choices()
@@ -583,9 +584,9 @@ def sample_create():
     if form.validate_on_submit():
         is_crosslinked = form.crosslinked_sample.data
         if is_crosslinked:
-            sample = CrosslinkSample()
+            sample = CrosslinkMassSpecSample()
         else:
-            sample = IdentificationSample()
+            sample = IdentificationMassSpecSample()
         form.populate_obj(sample)
         sample.crosslinked_sample = 1 if is_crosslinked else 0
         sample.quantitation = 1 if form.quantitation.data else 0
@@ -607,7 +608,7 @@ def sample_create():
 
 @app.route("/samples/<int:id>")
 def sample_detail(id):
-    sample = db.get_or_404(Sample, id)
+    sample = db.get_or_404(MassSpecSample, id)
     total_size_gb = sum(f.size_bytes or 0 for f in sample.files) / (1024 ** 3)
     return render_template(
         "sample/detail.html", sample=sample,
@@ -617,8 +618,8 @@ def sample_detail(id):
 
 @app.route("/samples/<int:id>/edit", methods=["GET", "POST"])
 def sample_edit(id):
-    sample = db.get_or_404(Sample, id)
-    form = SampleForm(obj=sample)
+    sample = db.get_or_404(MassSpecSample, id)
+    form = MassSpecSampleForm(obj=sample)
     form.experiment_id.choices = _experiment_choices()
     # Ensure current experiment appears even if its project is archived
     if sample.experiment_id not in [c[0] for c in form.experiment_id.choices]:
@@ -653,33 +654,16 @@ def sample_edit(id):
     return render_template("sample/form.html", form=form, sample=sample)
 
 
-@app.route("/samples/<int:id>/files")
-def sample_files(id):
-    sample = db.get_or_404(Sample, id)
-    files = []
-    error = None
-    path = sample.file_name_root
-    if not path:
-        error = "No file path is set for this sample."
-    else:
-        try:
-            files = [(name, loc, size / 1024 ** 3)
-                     for name, loc, size in SpectraAddressBook(path).collect()]
-        except Exception as e:
-            error = f"Error scanning path: {e}"
-    return render_template("sample/files.html", sample=sample, files=files, error=error)
-
-
 # ---------------------------------------------------------------------------
 # Files (DB records)
 # ---------------------------------------------------------------------------
 @app.route("/files")
 def file_list():
     files = (
-        File.query.options(
-            joinedload(File.sample).joinedload(Sample.experiment).joinedload(Experiment.project)
+        MassSpecAcquisition.query.options(
+            joinedload(MassSpecAcquisition.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project)
         )
-        .order_by(File.date.desc(), File.filename)
+        .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename)
         .all()
     )
     return render_template("file/list.html", files=files)
@@ -687,14 +671,14 @@ def file_list():
 
 @app.route("/samples/<int:sample_id>/db-files/new", methods=["GET", "POST"])
 def file_create(sample_id):
-    sample = db.get_or_404(Sample, sample_id)
-    form = FileForm()
+    sample = db.get_or_404(MassSpecSample, sample_id)
+    form = MassSpecAcquisitionForm()
     if form.validate_on_submit():
-        f = File(sample_id=sample_id)
+        f = MassSpecAcquisition(sample_id=sample_id)
         form.populate_obj(f)
         f.meta = form.meta_json.data
         if f.size_bytes is not None:
-            f.size_bytes = f.size_bytes * 1e9
+            f.size_bytes = int(f.size_bytes * 1e9)
         db.session.add(f)
         db.session.commit()
         flash("File record created.", "success")
@@ -704,13 +688,13 @@ def file_create(sample_id):
 
 @app.route("/files/<int:id>")
 def file_detail(id):
-    f = db.get_or_404(File, id)
+    f = db.get_or_404(MassSpecAcquisition, id)
     return render_template("file/detail.html", file=f)
 
 
 def _file_edit_tree():
     experiments = Experiment.query.order_by(Experiment.name).all()
-    samples = Sample.query.order_by(Sample.name).all()
+    samples = MassSpecSample.query.order_by(MassSpecSample.name).all()
     return {
         "experiments": [
             {"id": e.id, "project_id": e.project_id,
@@ -727,8 +711,8 @@ def _file_edit_tree():
 
 @app.route("/files/<int:id>/edit", methods=["GET", "POST"])
 def file_edit(id):
-    f = db.get_or_404(File, id)
-    form = FileEditForm()
+    f = db.get_or_404(MassSpecAcquisition, id)
+    form = MassSpecAcquisitionEditForm()
     form.project_id.choices = [("", "—")] + [
         (p.id, f"{p.code} — {p.name}")
         for p in Project.query.order_by(Project.name).all()
@@ -763,7 +747,7 @@ def file_edit(id):
 
 @app.route("/files/<int:id>/delete", methods=["POST"])
 def file_delete(id):
-    f = db.get_or_404(File, id)
+    f = db.get_or_404(MassSpecAcquisition, id)
     sample_id = f.sample_id
     db.session.delete(f)
     db.session.commit()

@@ -7,9 +7,7 @@
   <a href="{{ url_for('project_edit', id=project.id) }}">Edit Project</a>
 </p>
 
-{% if project.description %}
-<p>{{ project.description }}</p>
-{% endif %}
+{% if project.description %}<p>{{ project.description }}</p>{% endif %}
 <p><strong>Contact:</strong> {{ contact_name }}</p>
 <p><strong>Status:</strong> {{ 'Active' if project.active else 'Archived' }}</p>
 <p><strong>Summary:</strong>

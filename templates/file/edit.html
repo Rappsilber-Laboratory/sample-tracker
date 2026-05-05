@@ -13,10 +13,7 @@
     <tr><th>Scans</th><td>{{ file.scan_count or '—' }}</td></tr>
     <tr><th>Instrument</th><td>{{ file.instrument_initial or '—' }}</td></tr>
     <tr><th>Date</th><td>{{ file.date or '—' }}</td></tr>
-    <tr><th>Project code (filename)</th><td>{{ file.project_code or '—' }}</td></tr>
     <tr><th>User initials</th><td>{{ file.user_initials or '—' }}</td></tr>
-    <tr><th>Batch</th><td>{{ file.batch_name or '—' }}</td></tr>
-    <tr><th>Sample code (filename)</th><td>{{ file.sample_code or '—' }}</td></tr>
     {% if file.meta %}
     <tr><th>Meta</th><td><pre style="margin:0">{{ file.meta }}</pre></td></tr>
     {% endif %}

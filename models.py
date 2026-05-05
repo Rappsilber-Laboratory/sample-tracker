@@ -11,13 +11,13 @@ cell_line_virus = db.Table(
 
 sample_species = db.Table(
     "sample_species",
-    db.Column("sample_id", db.Integer, db.ForeignKey("sample.id"), primary_key=True),
+    db.Column("sample_id", db.Integer, db.ForeignKey("mass_spec_sample.id"), primary_key=True),
     db.Column("species_id", db.Integer, db.ForeignKey("species.id"), primary_key=True),
 )
 
 sample_cell_line = db.Table(
     "sample_cell_line",
-    db.Column("sample_id", db.Integer, db.ForeignKey("sample.id"), primary_key=True),
+    db.Column("sample_id", db.Integer, db.ForeignKey("mass_spec_sample.id"), primary_key=True),
     db.Column(
         "cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True
     ),
@@ -31,7 +31,7 @@ class Project(db.Model):
     code = db.Column(db.Text, nullable=False)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
-    contact_person_initials = db.Column(db.Text)
+    user_initials = db.Column(db.Text)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
     experiments = db.relationship("Experiment", back_populates="project")
@@ -45,10 +45,11 @@ class Experiment(db.Model):
     code = db.Column(db.Text)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text)
-    contact_person = db.Column(db.Text)
+    user_initials = db.Column(db.Text)
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
     project = db.relationship("Project", back_populates="experiments")
-    samples = db.relationship("Sample", back_populates="experiment")
+    samples = db.relationship("MassSpecSample", back_populates="experiment")
 
 
 class Species(db.Model):
@@ -84,16 +85,16 @@ class CellLine(db.Model):
     viruses = db.relationship("Virus", secondary=cell_line_virus, backref="cell_lines")
 
 
-class Sample(db.Model):
-    __tablename__ = "sample"
+class MassSpecSample(db.Model):
+    __tablename__ = "mass_spec_sample"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     experiment_id = db.Column(
         db.Integer, db.ForeignKey("experiment.id"), nullable=False
     )
     name = db.Column(db.Text, nullable=False)
-    comment = db.Column(db.Text)
-    file_name_root = db.Column(db.Text)
+    description = db.Column(db.Text)
+    user_initials = db.Column(db.Text)
     disease = db.Column(db.Text)
     phenotype = db.Column(db.Text)
     isotope_labeling_channel = db.Column(db.Text)
@@ -148,41 +149,37 @@ class Sample(db.Model):
     )
 
 
-class CrosslinkSample(Sample):
+class CrosslinkSample(MassSpecSample):
     __mapper_args__ = {"polymorphic_identity": 1}
 
 
-class IdentificationSample(Sample):
+class IdentificationSample(MassSpecSample):
     __mapper_args__ = {"polymorphic_identity": 0}
 
 
 class User(db.Model):
     __tablename__ = "user"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    initials = db.Column(db.Text, primary_key=True)
     name = db.Column(db.Text, nullable=False)
-    initials = db.Column(db.Text)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
 
-class File(db.Model):
-    __tablename__ = "file"
+class MassSpecAcquisition(db.Model):
+    __tablename__ = "mass_spec_acquisition"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    sample_id = db.Column(db.Integer, db.ForeignKey("sample.id"), nullable=True)
+    sample_id = db.Column(db.Integer, db.ForeignKey("mass_spec_sample.id"), nullable=True)
     location = db.Column(db.Text)
     filename = db.Column(db.Text)
-    size_bytes = db.Column(db.Float)
+    size_bytes = db.Column(db.Integer)
     instrument_initial = db.Column(db.Text)
-    date = db.Column(db.Text)
-    project_code = db.Column(db.Text)
+    date = db.Column(db.Date)
     user_initials = db.Column(db.Text)
-    batch_name = db.Column(db.Text)
     scan_count = db.Column(db.Integer)
     meta = db.Column(db.Text)
-    sample_code = db.Column(db.Text)
 
     sample = db.relationship(
-        "Sample",
-        backref=db.backref("files", order_by="desc(File.date), File.filename"),
+        "MassSpecSample",
+        backref=db.backref("files", order_by="desc(MassSpecAcquisition.date), MassSpecAcquisition.filename"),
     )

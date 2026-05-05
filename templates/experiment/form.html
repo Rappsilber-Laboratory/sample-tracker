@@ -9,7 +9,8 @@
   <p>{{ render_field(form.code) }}</p>
   <p>{{ render_field(form.name) }}</p>
   <p>{{ render_field(form.description) }}</p>
-  <p>{{ render_field(form.contact_person) }}</p>
+  <p>{{ render_field(form.user_initials) }}</p>
+  <p>{{ render_field(form.active) }}</p>
   <button type="submit">Save</button>
   {% if experiment %}
     <a href="{{ url_for('experiment_detail', id=experiment.id) }}">Cancel</a>

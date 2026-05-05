@@ -14,7 +14,7 @@
     <tr>
       <td><a href="{{ url_for('experiment_detail', id=experiment.id) }}">{{ experiment.name }}</a></td>
       {% if show_project %}<td><a href="{{ url_for('project_detail', id=experiment.project.id) }}">{{ experiment.project.name }}</a></td>{% endif %}
-      <td>{{ experiment.contact_person or '' }}</td>
+      <td>{{ experiment.user_initials or '' }}</td>
       <td>{{ experiment.description or '' }}</td>
       <td><a href="{{ url_for('experiment_edit', id=experiment.id) }}">Edit</a></td>
     </tr>
@@ -35,7 +35,7 @@
       {% if show_experiment %}<th>Experiment</th>{% endif %}
       {% if show_project %}<th>Project</th>{% endif %}
       <th>Type</th>
-      <th>Comment</th>
+      <th>Description</th>
       <th></th>
     </tr>
   </thead>
@@ -46,7 +46,7 @@
       {% if show_experiment %}<td><a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">{{ sample.experiment.name }}</a></td>{% endif %}
       {% if show_project %}<td><a href="{{ url_for('project_detail', id=sample.experiment.project_id) }}">{{ sample.experiment.project.name }}</a></td>{% endif %}
       <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
-      <td>{{ sample.comment or '' }}</td>
+      <td>{{ sample.description or '' }}</td>
       <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
     </tr>
     {% else %}

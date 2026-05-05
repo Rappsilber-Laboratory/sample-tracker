@@ -10,7 +10,7 @@
   <p>{{ render_field(form.active) }}</p>
   <button type="submit">Save</button>
   {% if user %}
-    <a href="{{ url_for('user_detail', id=user.id) }}">Cancel</a>
+    <a href="{{ url_for('user_detail', initials=user.initials) }}">Cancel</a>
   {% else %}
     <a href="{{ url_for('user_list') }}">Cancel</a>
   {% endif %}

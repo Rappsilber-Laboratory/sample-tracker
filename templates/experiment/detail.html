@@ -10,7 +10,8 @@
 <p><strong>Project:</strong> <a href="{{ url_for('project_detail', id=experiment.project.id) }}">{{ experiment.project.code }} — {{ experiment.project.name }}</a></p>
 {% if experiment.code %}<p><strong>Code:</strong> {{ experiment.code }}</p>{% endif %}
 {% if experiment.description %}<p>{{ experiment.description }}</p>{% endif %}
-{% if experiment.contact_person %}<p><strong>Contact:</strong> {{ experiment.contact_person }}</p>{% endif %}
+{% if experiment.user_initials %}<p><strong>Contact:</strong> {{ experiment.user_initials }}</p>{% endif %}
+{% if not experiment.active %}<p><strong>Status:</strong> Inactive</p>{% endif %}
 <p><strong>Summary:</strong>
   {{ sample_count }} sample{{ '' if sample_count == 1 else 's' }},
   {{ file_count }} file{{ '' if file_count == 1 else 's' }},

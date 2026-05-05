@@ -11,14 +11,8 @@
     <p>{{ render_field(form.experiment_id) }}</p>
     <p>{{ render_field(form.code) }}</p>
     <p>{{ render_field(form.name) }}</p>
-    <p>{{ render_field(form.comment) }}</p>
-    <!-- <p>
-      {{ render_field(form.file_name_root) }}
-      <small class="field-hint">File Name Root Formatting: InstrumentInitial_Date_ProjectCode_UserInitials_BatchName</small>
-      {% if sample %}
-        <a href="{{ url_for('sample_files', id=sample.id) }}">View Files</a>
-      {% endif %}
-    </p> -->
+    <p>{{ render_field(form.description) }}</p>
+    <p>{{ render_field(form.user_initials) }}</p>
   </fieldset>
 
   <details>
@@ -122,7 +116,6 @@
       <th>Filename</th>
       <th>Instrument</th>
       <th>Date</th>
-      <th>Batch</th>
       <th>User</th>
       <th>Size (GB)</th>
       <th>Scans</th>
@@ -134,7 +127,6 @@
       <td>{{ f.filename or '' }}</td>
       <td>{{ f.instrument_initial or '' }}</td>
       <td>{{ f.date or '' }}</td>
-      <td>{{ f.batch_name or '' }}</td>
       <td>{{ f.user_initials or '' }}</td>
       <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>
       <td>{{ f.scan_count or '' }}</td>

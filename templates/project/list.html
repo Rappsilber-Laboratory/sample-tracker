@@ -26,13 +26,15 @@
     <tr>
       <td>{{ project.code }}</td>
       <td><a href="{{ url_for('project_detail', id=project.id) }}">{{ project.name }}</a></td>
-      <td>{{ users.get(project.contact_person_initials, project.contact_person_initials or '') }}</td>
+      <td>{{ users.get(project.user_initials, project.user_initials or '') }}</td>
       <td>{{ exp_counts[project.id] }}</td>
       <td>
-        <form method="post" action="{{ url_for('project_toggle_active', id=project.id, show_archived=1 if show_archived else 0) }}" style="display:inline">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="checkbox" {% if project.active %}checked{% endif %} onchange="this.form.submit()" title="{{ 'Active' if project.active else 'Archived' }}">
-        </form>
+        <input type="checkbox"
+               {% if project.active %}checked{% endif %}
+               data-id="{{ project.id }}"
+               data-csrf="{{ csrf_token() }}"
+               title="{{ 'Active' if project.active else 'Archived' }}"
+               onchange="toggleActive(this)">
       </td>
       <td><a href="{{ url_for('project_edit', id=project.id) }}">Edit</a></td>
     </tr>
@@ -41,4 +43,22 @@
     {% endfor %}
   </tbody>
 </table>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleActive(cb) {
+  const id = cb.dataset.id;
+  const csrf = cb.dataset.csrf;
+  fetch(`/projects/${id}/toggle-active`, {
+    method: 'POST',
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `csrf_token=${encodeURIComponent(csrf)}`
+  }).then(r => {
+    if (!r.ok) throw new Error(r.status);
+  }).catch(() => {
+    cb.checked = !cb.checked;
+    alert('Could not update project status.');
+  });
+}
+</script>
 {% endblock %}

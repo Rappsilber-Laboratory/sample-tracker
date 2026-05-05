@@ -11,17 +11,25 @@
   {{ '%.2f' | format(total_size_gb) }} GB
 </p>
 
-<details open>
-  <summary>Basic Info</summary>
-  <table>
-    <tbody>
-      <tr><th>Experiment</th><td><a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">{{ sample.experiment.name }}</a></td></tr>
-      {% if sample.code %}<tr><th>Code</th><td>{{ sample.code }}</td></tr>{% endif %}
-      <tr><th>Type</th><td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td></tr>
-      {% if sample.comment %}<tr><th>Comment</th><td>{{ sample.comment }}</td></tr>{% endif %}
-    </tbody>
-  </table>
-</details>
+<p><strong>Experiment:</strong> <a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">{{ sample.experiment.name }}</a></p>
+{% if sample.code %}<p><strong>Code:</strong> {{ sample.code }}</p>{% endif %}
+<p><strong>Type:</strong> {{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</p>
+{% if sample.user_initials %}<p><strong>User Initials:</strong> {{ sample.user_initials }}</p>{% endif %}
+{% if sample.description %}<p>{{ sample.description }}</p>{% endif %}
+
+<section class="new-batch"
+         data-project-code="{{ sample.experiment.project.code or '' }}"
+         data-experiment-code="{{ sample.experiment.code or '' }}"
+         data-sample-code="{{ sample.code or '' }}">
+  <h3>New Batch</h3>
+  <p>
+    <label>Instrument Initial <input type="text" id="batch-instrument"></label>
+    <label>User Initials <input type="text" id="batch-user"></label>
+    <label>Number of Acquisitions <input type="number" id="batch-count" min="1" value="1"></label>
+    <button type="button" id="batch-generate">Generate</button>
+  </p>
+  <pre id="batch-output"></pre>
+</section>
 
 {% set has_organism = sample.disease or sample.phenotype or sample.tissue or sample.organism_age or sample.organism_sex %}
 {% if has_organism or sample.species_list %}
@@ -107,4 +115,40 @@
   <summary>Files</summary>
   {{ file_table(sample.files) }}
 </details>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const section = document.querySelector('.new-batch');
+    const button = document.getElementById('batch-generate');
+    const output = document.getElementById('batch-output');
+
+    button.addEventListener('click', function () {
+      const inst = document.getElementById('batch-instrument').value;
+      const user = document.getElementById('batch-user').value;
+      const count = parseInt(document.getElementById('batch-count').value, 10);
+      const proj = section.dataset.projectCode;
+      const exp = section.dataset.experimentCode;
+      const samp = section.dataset.sampleCode;
+
+      if (!Number.isFinite(count) || count < 1) {
+        output.textContent = '';
+        return;
+      }
+
+      const now = new Date();
+      const date = now.getFullYear().toString()
+        + String(now.getMonth() + 1).padStart(2, '0')
+        + String(now.getDate()).padStart(2, '0');
+
+      const lines = [];
+      for (let i = 1; i <= count; i++) {
+        const n = String(i).padStart(2, '0');
+        lines.push(`${inst}_${date}_${proj}_${user}_${exp}_${samp}_${n}`);
+      }
+      output.textContent = lines.join('\n');
+    });
+  })();
+</script>
 {% endblock %}
