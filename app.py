@@ -163,10 +163,14 @@ def project_list():
         p.code: MassSpecSample.query.join(Experiment).filter(Experiment.project_code == p.code).count()
         for p in projects
     }
+    file_counts = {
+        p.code: MassSpecAcquisition.query.join(MassSpecSample).join(Experiment).filter(Experiment.project_code == p.code).count()
+        for p in projects
+    }
     projects = sorted(projects, key=lambda p: exp_counts[p.code], reverse=True)
     return render_template(
         "project/list.html", projects=projects, show_archived=show_archived,
-        users=users, exp_counts=exp_counts, sample_counts=sample_counts
+        users=users, exp_counts=exp_counts, sample_counts=sample_counts, file_counts=file_counts
     )
 
 

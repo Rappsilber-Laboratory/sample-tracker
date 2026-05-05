@@ -8,11 +8,14 @@
       <th>Description</th>
       <th>Contact</th>
       {% if show_samples %}<th>Samples</th>{% endif %}
+      <th>Files</th>
       <th></th>
     </tr>
   </thead>
   <tbody>
     {% for experiment in experiments %}
+    {% set ns = namespace(file_count=0) %}
+    {% for sample in experiment.samples %}{% set ns.file_count = ns.file_count + (sample.files | length) %}{% endfor %}
     <tr>
       <td>{{ experiment.code }}</td>
       <td><a href="{{ url_for('experiment_detail', code=experiment.code) }}">{{ experiment.name }}</a></td>
@@ -20,10 +23,11 @@
       <td>{{ experiment.description or '' }}</td>
       <td>{{ users.get(experiment.user_initials, experiment.user_initials) if experiment.user_initials else '' }}</td>
       {% if show_samples %}<td>{{ experiment.samples | length }}</td>{% endif %}
+      <td>{{ ns.file_count or '' }}</td>
       <td><a href="{{ url_for('experiment_edit', code=experiment.code) }}">Edit</a></td>
     </tr>
     {% else %}
-    <tr><td colspan="{{ 6 + (1 if show_project else 0) + (1 if show_samples else 0) }}">No experiments found.</td></tr>
+    <tr><td colspan="{{ 7 + (1 if show_project else 0) + (1 if show_samples else 0) }}">No experiments found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
@@ -31,7 +35,7 @@
 
 
 {% macro sample_table(samples, show_experiment=true, show_project=true, users={}) %}
-{% set colspan = 6 + (1 if show_experiment else 0) + (1 if show_project else 0) %}
+{% set colspan = 7 + (1 if show_experiment else 0) + (1 if show_project else 0) %}
 <table>
   <thead>
     <tr>
@@ -42,6 +46,7 @@
       <th>Type</th>
       <th>Description</th>
       <th>Contact</th>
+      <th>Files</th>
       <th></th>
     </tr>
   </thead>
@@ -55,6 +60,7 @@
       <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
       <td>{{ sample.description or '' }}</td>
       <td>{{ users.get(sample.user_initials, sample.user_initials) if sample.user_initials else '—' }}</td>
+      <td>{{ sample.files | length or '' }}</td>
       <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
     </tr>
     {% else %}

@@ -29,7 +29,9 @@ const tooltip = d3.select('body').append('div')
 
 // Build a single colour scale across all projects so colours are consistent across charts
 const allProjects = [...new Set(Object.values(data).flat().map(r => r.project))].sort();
-const colour = d3.scaleOrdinal(d3.schemeTableau10).domain(allProjects);
+const colour = d3.scaleOrdinal()
+  .range(["#38cae3","#d4582b","#7d5fd7","#7cd352","#ce4bbb","#5aa33c","#93539d","#d2c33b","#5c83d4","#e19a46","#d891d7","#65da9a","#9d772f","#d43f4c","#4db186","#cf4b7e","#477c3a","#c46d5c","#b6c671","#798126"])
+  .domain(allProjects);
 
 for (const [instrument, records] of Object.entries(data)) {
   // Collect unique sorted dates and project codes
