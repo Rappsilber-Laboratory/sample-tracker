@@ -835,6 +835,27 @@ def instrument_usage():
     return render_template("instrument_usage.html", data=dict(instruments))
 
 
+@app.route("/disk-usage")
+def disk_usage():
+    rows = (
+        db.session.query(
+            Project.code.label("project_code"),
+            func.sum(MassSpecAcquisition.size_bytes).label("total_bytes"),
+        )
+        .join(MassSpecSample, MassSpecAcquisition.sample_code == MassSpecSample.code)
+        .join(Experiment, MassSpecSample.experiment_code == Experiment.code)
+        .join(Project, Experiment.project_code == Project.code)
+        .group_by(Project.code)
+        .order_by(func.sum(MassSpecAcquisition.size_bytes).desc())
+        .all()
+    )
+    data = [
+        {"project": row.project_code, "gb": round((row.total_bytes or 0) / 1e9, 4)}
+        for row in rows
+    ]
+    return render_template("disk_usage.html", data=data)
+
+
 @app.route("/about")
 def about():
     return render_template("about.html")

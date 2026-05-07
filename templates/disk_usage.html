@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Disk Usage{% endblock %}
+{% block content %}
+<h2>Disk Usage</h2>
+<div id="chart"></div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script>
+const data = {{ data | tojson }};
+
+const margin = {top: 20, right: 20, bottom: 70, left: 70};
+const width = 800 - margin.left - margin.right;
+const height = 320 - margin.top - margin.bottom;
+
+const allProjects = data.map(d => d.project);
+const colour = d3.scaleOrdinal()
+  .range(["#38cae3","#d4582b","#7d5fd7","#7cd352","#ce4bbb","#5aa33c","#93539d","#d2c33b","#5c83d4","#e19a46","#d891d7","#65da9a","#9d772f","#d43f4c","#4db186","#cf4b7e","#477c3a","#c46d5c","#b6c671","#798126"])
+  .domain(allProjects);
+
+const tooltip = d3.select('body').append('div')
+  .style('position', 'fixed')
+  .style('background', 'rgba(0,0,0,0.75)')
+  .style('color', '#fff')
+  .style('padding', '4px 8px')
+  .style('border-radius', '4px')
+  .style('font-size', '12px')
+  .style('pointer-events', 'none')
+  .style('display', 'none');
+
+const x = d3.scaleBand()
+  .domain(allProjects)
+  .range([0, width])
+  .padding(0.15);
+
+const y = d3.scaleLinear()
+  .domain([0, d3.max(data, d => d.gb) * 1.05])
+  .nice()
+  .range([height, 0]);
+
+const svg = d3.select('#chart').append('svg')
+  .attr('width', width + margin.left + margin.right)
+  .attr('height', height + margin.top + margin.bottom)
+  .append('g')
+  .attr('transform', `translate(${margin.left},${margin.top})`);
+
+svg.selectAll('rect')
+  .data(data)
+  .join('rect')
+    .attr('x', d => x(d.project))
+    .attr('y', d => y(d.gb))
+    .attr('width', x.bandwidth())
+    .attr('height', d => height - y(d.gb))
+    .attr('fill', d => colour(d.project))
+    .on('mousemove', function(event, d) {
+      tooltip
+        .style('display', 'block')
+        .style('left', (event.clientX + 12) + 'px')
+        .style('top',  (event.clientY - 28) + 'px')
+        .text(`${d.project}: ${d.gb.toFixed(2)} GB`);
+    })
+    .on('mouseleave', () => tooltip.style('display', 'none'));
+
+svg.append('g')
+  .attr('transform', `translate(0,${height})`)
+  .call(d3.axisBottom(x))
+  .selectAll('text')
+    .attr('transform', 'rotate(-45)')
+    .style('text-anchor', 'end');
+
+svg.append('g').call(d3.axisLeft(y));
+
+svg.append('text')
+  .attr('transform', 'rotate(-90)')
+  .attr('y', -margin.left + 15)
+  .attr('x', -height / 2)
+  .attr('text-anchor', 'middle')
+  .style('font-size', '12px')
+  .text('GB');
+</script>
+{% endblock %}
