@@ -5,7 +5,6 @@
 <h2>{{ 'Edit' if project else 'New' }} Project</h2>
 <form method="post">
   {{ form.hidden_tag() }}
-  <p>{{ render_field(form.code) }}</p>
   <p>{{ render_field(form.name) }}</p>
   <p>{{ render_field(form.description) }}</p>
   <p>{{ render_field(form.user_initials) }}</p>
