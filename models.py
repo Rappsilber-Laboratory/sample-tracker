@@ -11,13 +11,13 @@ cell_line_virus = db.Table(
 
 sample_species = db.Table(
     "sample_species",
-    db.Column("sample_id", db.Integer, db.ForeignKey("mass_spec_sample.id"), primary_key=True),
+    db.Column("sample_code", db.Text, db.ForeignKey("mass_spec_sample.code"), primary_key=True),
     db.Column("species_id", db.Integer, db.ForeignKey("species.id"), primary_key=True),
 )
 
 sample_cell_line = db.Table(
     "sample_cell_line",
-    db.Column("sample_id", db.Integer, db.ForeignKey("mass_spec_sample.id"), primary_key=True),
+    db.Column("sample_code", db.Text, db.ForeignKey("mass_spec_sample.code"), primary_key=True),
     db.Column("cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True),
 )
 
@@ -27,7 +27,7 @@ class Project(db.Model):
 
     code = db.Column(db.Text, primary_key=True, nullable=False)
     name = db.Column(db.Text, nullable=False)
-    description = db.Column(db.Text)
+    description = db.Column(db.Text, nullable=False)
     user_initials = db.Column(db.Text, nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
@@ -40,7 +40,7 @@ class Experiment(db.Model):
     code = db.Column(db.Text, primary_key=True, nullable=False)
     project_code = db.Column(db.Text, db.ForeignKey("project.code"), nullable=False)
     name = db.Column(db.Text, nullable=False)
-    description = db.Column(db.Text)
+    description = db.Column(db.Text, nullable=False)
     user_initials = db.Column(db.Text, nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
@@ -84,11 +84,10 @@ class CellLine(db.Model):
 class MassSpecSample(db.Model):
     __tablename__ = "mass_spec_sample"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    code = db.Column(db.Text, primary_key=True, nullable=False)
     experiment_code = db.Column(db.Text, db.ForeignKey("experiment.code"), nullable=False)
-    code = db.Column(db.Text, nullable=False)
     name = db.Column(db.Text, nullable=False)
-    description = db.Column(db.Text)
+    description = db.Column(db.Text, nullable=False)
     user_initials = db.Column(db.Text, nullable=False)
     disease = db.Column(db.Text)
     phenotype = db.Column(db.Text)
@@ -162,7 +161,7 @@ class MassSpecAcquisition(db.Model):
     __tablename__ = "mass_spec_acquisition"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    sample_id = db.Column(db.Integer, db.ForeignKey("mass_spec_sample.id"), nullable=True)
+    sample_code = db.Column(db.Text, db.ForeignKey("mass_spec_sample.code"), nullable=True)
     location = db.Column(db.Text)
     filename = db.Column(db.Text)
     size_bytes = db.Column(db.Integer)

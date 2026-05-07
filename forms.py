@@ -15,7 +15,7 @@ from wtforms.validators import DataRequired, Optional
 class ProjectForm(FlaskForm):
     code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
-    description = TextAreaField("Description", validators=[Optional()])
+    description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
     active = BooleanField("Active", default=True)
 
@@ -24,7 +24,7 @@ class ExperimentForm(FlaskForm):
     project_code = SelectField("Project", coerce=str, validators=[DataRequired()])
     code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
-    description = TextAreaField("Description", validators=[Optional()])
+    description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
     active = BooleanField("Active", default=True)
 
@@ -62,7 +62,7 @@ class MassSpecSampleForm(FlaskForm):
     experiment_code = SelectField("Experiment", coerce=str, validators=[DataRequired()])
     code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
-    description = TextAreaField("Description", validators=[Optional()])
+    description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", coerce=str, validators=[DataRequired()])
     disease = StringField("Disease", default="N/A", validators=[Optional()])
     phenotype = StringField("Phenotype", default="N/A", validators=[Optional()])
@@ -187,6 +187,6 @@ class MassSpecAcquisitionEditForm(FlaskForm):
     experiment_code = SelectField(
         "Experiment", coerce=_optional_str, validators=[Optional()], validate_choice=False
     )
-    sample_id = SelectField(
-        "Sample", coerce=_optional_int, validators=[Optional()], validate_choice=False
+    sample_code = SelectField(
+        "Sample", coerce=_optional_str, validators=[Optional()], validate_choice=False
     )

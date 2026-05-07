@@ -3,10 +3,19 @@
 {% block title %}{{ 'Edit' if experiment else 'New' }} Experiment{% endblock %}
 {% block content %}
 <h2>{{ 'Edit' if experiment else 'New' }} Experiment</h2>
+{% if experiment %}
+  <p><a href="{{ url_for('experiment_detail', code=experiment.code) }}">Cancel</a></p>
+{% else %}
+  <p><a href="{{ url_for('experiment_list') }}">Cancel</a></p>
+{% endif %}
 <form method="post">
   {{ form.hidden_tag() }}
   <p>{{ render_field(form.project_code) }}</p>
+  {% if experiment %}
+  <p><strong>Code:</strong> {{ experiment.code }}</p>
+  {% else %}
   <p>{{ render_field(form.code) }}</p>
+  {% endif %}
   <p>{{ render_field(form.name) }}</p>
   <p>{{ render_field(form.description) }}</p>
   <p>{{ render_field(form.user_initials) }}</p>
@@ -34,9 +43,9 @@
   <tbody>
     {% for sample in samples %}
     <tr>
-      <td><a href="{{ url_for('sample_detail', id=sample.id) }}">{{ sample.name }}</a></td>
+      <td><a href="{{ url_for('sample_detail', code=sample.code) }}">{{ sample.name }}</a></td>
       <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
-      <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
+      <td><a href="{{ url_for('sample_edit', code=sample.code) }}">Edit</a></td>
     </tr>
     {% else %}
     <tr><td colspan="5">No samples yet.</td></tr>

@@ -9,7 +9,7 @@
       <th>Contact</th>
       {% if show_samples %}<th>Samples</th>{% endif %}
       <th>Files</th>
-      <th></th>
+      {# <th></th> #}
     </tr>
   </thead>
   <tbody>
@@ -24,7 +24,7 @@
       <td>{{ users.get(experiment.user_initials, experiment.user_initials) if experiment.user_initials else '' }}</td>
       {% if show_samples %}<td>{{ experiment.samples | length }}</td>{% endif %}
       <td>{{ ns.file_count or '' }}</td>
-      <td><a href="{{ url_for('experiment_edit', code=experiment.code) }}">Edit</a></td>
+      {# <td><a href="{{ url_for('experiment_edit', code=experiment.code) }}">Edit</a></td> #}
     </tr>
     {% else %}
     <tr><td colspan="{{ 7 + (1 if show_project else 0) + (1 if show_samples else 0) }}">No experiments found.</td></tr>
@@ -47,21 +47,21 @@
       <th>Description</th>
       <th>Contact</th>
       <th>Files</th>
-      <th></th>
+      {# <th></th> #}
     </tr>
   </thead>
   <tbody>
     {% for sample in samples %}
     <tr>
       <td>{{ sample.code or '' }}</td>
-      <td><a href="{{ url_for('sample_detail', id=sample.id) }}">{{ sample.name }}</a></td>
+      <td><a href="{{ url_for('sample_detail', code=sample.code) }}">{{ sample.name }}</a></td>
       {% if show_project %}<td><a href="{{ url_for('project_detail', code=sample.experiment.project_code) }}">{{ sample.experiment.project.name }}</a></td>{% endif %}
       {% if show_experiment %}<td><a href="{{ url_for('experiment_detail', code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></td>{% endif %}
-      <td>{{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</td>
+      <td>{% if sample.crosslinked_sample is none %}—{% elif sample.crosslinked_sample %}Crosslinked{% else %}Identification{% endif %}</td>
       <td>{{ sample.description or '' }}</td>
       <td>{{ users.get(sample.user_initials, sample.user_initials) if sample.user_initials else '—' }}</td>
       <td>{{ sample.files | length or '' }}</td>
-      <td><a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a></td>
+      {# <td><a href="{{ url_for('sample_edit', code=sample.code) }}">Edit</a></td> #}
     </tr>
     {% else %}
     <tr><td colspan="{{ colspan }}">No samples found.</td></tr>
@@ -97,7 +97,7 @@
       <th>Contact</th>
       <th>Size (GB)</th>
       <th>Scans</th>
-      <th></th>
+      {# <th></th> #}
     </tr>
   </thead>
   <tbody>
@@ -107,11 +107,11 @@
       <td><a href="{{ url_for('file_detail', id=f.id) }}">{% if f.sample %}{{ highlight_codes(f.filename or f.id|string, f.sample.experiment.project.code, f.sample.experiment.code, f.sample.code) }}{% else %}{{ f.filename or f.id }}{% endif %}</a></td>
       <td>{% if f.sample %}<a href="{{ url_for('project_detail', code=f.sample.experiment.project_code) }}">{{ f.sample.experiment.project.name }}</a>{% else %}—{% endif %}</td>
       <td>{% if f.sample %}<a href="{{ url_for('experiment_detail', code=f.sample.experiment_code) }}">{{ f.sample.experiment.name }}</a>{% else %}—{% endif %}</td>
-      <td>{% if f.sample %}<a href="{{ url_for('sample_detail', id=f.sample_id) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('sample_detail', code=f.sample_code) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>
       <td>{{ users.get(f.user_initials, f.user_initials) if f.user_initials else '—' }}</td>
       <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>
       <td>{{ f.scan_count or '' }}</td>
-      <td><a href="{{ url_for('file_edit', id=f.id) }}">Edit</a></td>
+      {# <td><a href="{{ url_for('file_edit', id=f.id) }}">Edit</a></td> #}
     </tr>
     {% else %}
     <tr><td colspan="9">No file records found.</td></tr>

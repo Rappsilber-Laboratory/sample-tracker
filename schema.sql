@@ -6,7 +6,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE project (
     code TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
-    description TEXT,
+    description TEXT NOT NULL,
     user_initials TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1
 );
@@ -15,7 +15,7 @@ CREATE TABLE experiment (
     code TEXT NOT NULL PRIMARY KEY,
     project_code TEXT NOT NULL REFERENCES project(code),
     name TEXT NOT NULL,
-    description TEXT,
+    description TEXT NOT NULL,
     user_initials TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1
 );
@@ -34,10 +34,10 @@ CREATE TABLE cell_line (
 );
 
 CREATE TABLE mass_spec_sample (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL PRIMARY KEY,
     experiment_code TEXT NOT NULL REFERENCES experiment(code),
     name TEXT NOT NULL,
-    description TEXT,
+    description TEXT NOT NULL,
     user_initials TEXT NOT NULL,
     disease TEXT,
     phenotype TEXT,
@@ -74,9 +74,7 @@ CREATE TABLE mass_spec_sample (
     uv_wavelength_in_nanometers REAL,
 
     -- IdentificationSample columns (used when crosslinked_sample = 0)
-    peptide_level_fraction TEXT,
-
-    code TEXT NOT NULL
+    peptide_level_fraction TEXT
 );
 
 CREATE TABLE virus (
@@ -93,15 +91,15 @@ CREATE TABLE cell_line_virus (
 );
 
 CREATE TABLE sample_species (
-    sample_id INTEGER NOT NULL REFERENCES mass_spec_sample(id),
+    sample_code TEXT NOT NULL REFERENCES mass_spec_sample(code),
     species_id INTEGER NOT NULL REFERENCES species(id),
-    PRIMARY KEY (sample_id, species_id)
+    PRIMARY KEY (sample_code, species_id)
 );
 
 CREATE TABLE sample_cell_line (
-    sample_id INTEGER NOT NULL REFERENCES mass_spec_sample(id),
+    sample_code TEXT NOT NULL REFERENCES mass_spec_sample(code),
     cell_line_id INTEGER NOT NULL REFERENCES cell_line(id),
-    PRIMARY KEY (sample_id, cell_line_id)
+    PRIMARY KEY (sample_code, cell_line_id)
 );
 
 CREATE TABLE user (
@@ -112,7 +110,7 @@ CREATE TABLE user (
 
 CREATE TABLE mass_spec_acquisition (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sample_id INTEGER REFERENCES mass_spec_sample(id),
+    sample_code TEXT REFERENCES mass_spec_sample(code),
     location TEXT,
     filename TEXT,
     size_bytes INTEGER,

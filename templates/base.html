@@ -10,7 +10,6 @@
 <body>
   <header>
     <nav>
-      <a href="/">Home</a>
       <a href="{{ url_for('project_list') }}">{{ nav_counts.get('projects', '') }} Projects</a>
       <a href="{{ url_for('experiment_list') }}">{{ nav_counts.get('experiments', '') }} Experiments</a>
       <a href="{{ url_for('sample_list') }}">{{ nav_counts.get('samples', '') }} Samples</a>

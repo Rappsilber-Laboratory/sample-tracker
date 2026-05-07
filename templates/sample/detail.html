@@ -4,7 +4,7 @@
 {% block content %}
 <h2>Sample: {{ sample.name }}</h2>
 <p>
-  <a href="{{ url_for('sample_edit', id=sample.id) }}">Edit</a>
+  <a href="{{ url_for('sample_edit', code=sample.code) }}">Edit</a>
 </p>
 <p><strong>Summary:</strong>
   {{ file_count }} file{{ '' if file_count == 1 else 's' }},
@@ -13,7 +13,7 @@
 
 <p><strong>Experiment:</strong> <a href="{{ url_for('experiment_detail', code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></p>
 {% if sample.code %}<p><strong>Code:</strong> {{ sample.code }}</p>{% endif %}
-<p><strong>Type:</strong> {{ 'Crosslinked' if sample.crosslinked_sample else 'Identification' }}</p>
+<p><strong>Type:</strong> {% if sample.crosslinked_sample is none %}—{% elif sample.crosslinked_sample %}Crosslinked{% else %}Identification{% endif %}</p>
 {% if sample.user_initials %}<p><strong>Contact:</strong> {{ users.get(sample.user_initials, sample.user_initials) }}</p>{% endif %}
 {% if sample.description %}<p>{{ sample.description }}</p>{% endif %}
 
@@ -31,19 +31,23 @@
   <pre id="batch-output"></pre>
 </section>
 
-{% set has_organism = sample.disease or sample.phenotype or sample.tissue or sample.organism_age or sample.organism_sex %}
-{% if has_organism or sample.species_list %}
+{% if sample.species_list %}
 <details>
-  <summary>Organism</summary>
+  <summary>Species</summary>
   <table>
     <tbody>
-      {% if sample.disease %}<tr><th>Disease</th><td>{{ sample.disease }}</td></tr>{% endif %}
-      {% if sample.phenotype %}<tr><th>Phenotype</th><td>{{ sample.phenotype }}</td></tr>{% endif %}
-      {% if sample.tissue %}<tr><th>Tissue</th><td>{{ sample.tissue }}</td></tr>{% endif %}
-      {% if sample.organism_age %}<tr><th>Age</th><td>{{ sample.organism_age }}{% if sample.organism_age_unit %} {{ sample.organism_age_unit }}{% endif %}</td></tr>{% endif %}
-      {% if sample.organism_sex %}<tr><th>Sex</th><td>{{ sample.organism_sex }}</td></tr>{% endif %}
-      {% if sample.species_list %}<tr><th>Species</th><td>{{ sample.species_list | map(attribute='name') | join(', ') }}</td></tr>{% endif %}
-      {% if sample.cell_lines %}<tr><th>Cell Lines</th><td>{{ sample.cell_lines | map(attribute='name') | join(', ') }}</td></tr>{% endif %}
+      <tr><td>{{ sample.species_list | map(attribute='name') | join(', ') }}</td></tr>
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{% if sample.cell_lines %}
+<details>
+  <summary>Cell Lines</summary>
+  <table>
+    <tbody>
+      <tr><td>{{ sample.cell_lines | map(attribute='name') | join(', ') }}</td></tr>
     </tbody>
   </table>
 </details>
@@ -62,18 +66,6 @@
       {% if sample.synthetic_peptide %}<tr><th>Synthetic Peptide</th><td>{{ sample.synthetic_peptide }}</td></tr>{% endif %}
       {% if sample.digestion %}<tr><th>Digestion</th><td>{{ sample.digestion }}</td></tr>{% endif %}
       {% if sample.protein_isolation_or_fractionation %}<tr><th>Protein Isolation / Fractionation</th><td>{{ sample.protein_isolation_or_fractionation }}</td></tr>{% endif %}
-    </tbody>
-  </table>
-</details>
-{% endif %}
-
-{% if sample.quantitation %}
-<details>
-  <summary>Quantitation</summary>
-  <table>
-    <tbody>
-      {% if sample.quantitation_scheme %}<tr><th>Scheme</th><td>{{ sample.quantitation_scheme }}</td></tr>{% endif %}
-      {% if sample.quantitation_method %}<tr><th>Method</th><td>{{ sample.quantitation_method }}</td></tr>{% endif %}
     </tbody>
   </table>
 </details>
@@ -109,6 +101,34 @@
   </table>
 </details>
 {% endif %}
+{% endif %}
+
+{% if sample.quantitation %}
+<details>
+  <summary>Quantitation</summary>
+  <table>
+    <tbody>
+      {% if sample.quantitation_scheme %}<tr><th>Scheme</th><td>{{ sample.quantitation_scheme }}</td></tr>{% endif %}
+      {% if sample.quantitation_method %}<tr><th>Method</th><td>{{ sample.quantitation_method }}</td></tr>{% endif %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{% set has_organism = sample.disease or sample.phenotype or sample.tissue or sample.organism_age or sample.organism_sex %}
+{% if has_organism %}
+<details>
+  <summary>Organism</summary>
+  <table>
+    <tbody>
+      {% if sample.disease %}<tr><th>Disease</th><td>{{ sample.disease }}</td></tr>{% endif %}
+      {% if sample.phenotype %}<tr><th>Phenotype</th><td>{{ sample.phenotype }}</td></tr>{% endif %}
+      {% if sample.tissue %}<tr><th>Tissue</th><td>{{ sample.tissue }}</td></tr>{% endif %}
+      {% if sample.organism_age %}<tr><th>Age</th><td>{{ sample.organism_age }}{% if sample.organism_age_unit %} {{ sample.organism_age_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.organism_sex %}<tr><th>Sex</th><td>{{ sample.organism_sex }}</td></tr>{% endif %}
+    </tbody>
+  </table>
+</details>
 {% endif %}
 
 <details>

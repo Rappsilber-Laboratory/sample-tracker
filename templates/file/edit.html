@@ -26,7 +26,7 @@
     <legend>Associate with</legend>
     <p>{{ render_field(form.project_code) }}</p>
     <p>{{ render_field(form.experiment_code) }}</p>
-    <p>{{ render_field(form.sample_id) }}</p>
+    <p>{{ render_field(form.sample_code) }}</p>
   </fieldset>
   <button type="submit">Save</button>
   <a href="{{ url_for('file_detail', id=file.id) }}">Cancel</a>
@@ -38,7 +38,7 @@
   const TREE = {{ tree|tojson }};
   const projectSel = document.getElementById('project_code');
   const experimentSel = document.getElementById('experiment_code');
-  const sampleSel = document.getElementById('sample_id');
+  const sampleSel = document.getElementById('sample_code');
 
   function fillSelect(sel, options, valueKey, selectedValue) {
     const current = selectedValue != null ? String(selectedValue) : '';
@@ -64,12 +64,12 @@
     fillSelect(experimentSel, opts, 'code', selectedExperimentCode);
   }
 
-  function refreshSamples(selectedSampleId) {
+  function refreshSamples(selectedSampleCode) {
     const experimentCode = experimentSel.value;
     const opts = experimentCode
       ? TREE.samples.filter(s => s.experiment_code === experimentCode)
       : [];
-    fillSelect(sampleSel, opts, 'id', selectedSampleId);
+    fillSelect(sampleSel, opts, 'code', selectedSampleCode);
   }
 
   projectSel.addEventListener('change', () => {
@@ -82,8 +82,8 @@
 
   // Initial cascade: respect any pre-selected values from the server.
   const initialExperimentCode = experimentSel.value;
-  const initialSampleId = sampleSel.value;
+  const initialSampleCode = sampleSel.value;
   refreshExperiments(initialExperimentCode);
-  refreshSamples(initialSampleId);
+  refreshSamples(initialSampleCode);
 </script>
 {% endblock %}
