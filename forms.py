@@ -31,7 +31,7 @@ class ExperimentForm(FlaskForm):
 
 class SpeciesForm(FlaskForm):
     species_name = StringField("Species Name", validators=[DataRequired()])
-    species_taxon = StringField("Species Taxon", validators=[Optional()])
+    species_taxon = StringField("Species Taxon", validators=[DataRequired()])
 
 
 class MultiCheckboxField(SelectMultipleField):
@@ -47,8 +47,8 @@ class VirusForm(FlaskForm):
 
 class CellLineForm(FlaskForm):
     cell_line_name = StringField("Cell Line Name", validators=[DataRequired()])
-    cell_line_code = StringField("Cell Line Code", validators=[Optional()])
-    species_id = SelectField("Species", coerce=int, validators=[Optional()])
+    cell_line_code = StringField("Cell Line Code", validators=[DataRequired()])
+    species_id = SelectField("Species", coerce=int, validators=[DataRequired()])
     virus_ids = MultiCheckboxField("Viruses", coerce=int)
 
 
@@ -115,16 +115,16 @@ class MassSpecSampleForm(FlaskForm):
         validators=[Optional()],
     )
     protein_or_cell_concentration = FloatField(
-        "Protein/Cell Concentration", validators=[Optional()]
+        "Protein or Cell Concentration", validators=[Optional()]
     )
     protein_or_cell_concentration_unit = StringField(
-        "Protein/Cell Concentration Unit", default="N/A", validators=[Optional()]
+        "Protein or Cell Concentration Unit", default="N/A", validators=[Optional()]
     )
     crosslinker_or_compound_concentration = FloatField(
-        "Crosslinker/Compound Concentration", validators=[Optional()]
+        "Crosslinker or Compound Concentration", validators=[Optional()]
     )
     crosslinker_or_compound_concentration_unit = StringField(
-        "Crosslinker/Compound Concentration Unit", default="N/A", validators=[Optional()]
+        "Crosslinker or Compound Concentration Unit", default="N/A", validators=[Optional()]
     )
     organic_solvent_concentration = FloatField(
         "Organic Solvent Concentration", validators=[Optional()]

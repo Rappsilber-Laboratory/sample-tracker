@@ -1,11 +1,13 @@
 import os
+import re
 import sqlite3
 
 import click
 from collections import defaultdict
 
 from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
-from sqlalchemy import func
+from sqlalchemy import event, func
+from sqlalchemy.engine import Engine
 from flask_wtf import CSRFProtect
 from sqlalchemy.orm import joinedload
 
@@ -41,9 +43,24 @@ db.init_app(app)
 CSRFProtect(app)
 
 
-@app.template_filter('replace_first')
-def replace_first_filter(s, old, new):
-    return s.replace(old, new, 1)
+@event.listens_for(Engine, "connect")
+def _enable_sqlite_foreign_keys(dbapi_connection, connection_record):
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        cur = dbapi_connection.cursor()
+        cur.execute("PRAGMA foreign_keys=ON")
+        cur.close()
+
+
+@app.template_filter('wrap_code')
+def wrap_code_filter(s, code, marker, only_first=False):
+    if not code or not s:
+        return s
+    pattern = re.compile(re.escape(code), re.IGNORECASE)
+    return pattern.sub(
+        lambda m: f'\x01{marker}\x02{m.group(0)}\x03',
+        s,
+        count=1 if only_first else 0,
+    )
 
 
 @app.context_processor
@@ -76,6 +93,7 @@ def init_db():
     with open(schema_path) as f:
         schema_sql = f.read()
     conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys=ON")
     conn.executescript(schema_sql)
     conn.close()
     click.echo(f"Initialized database at {db_path}")
@@ -282,15 +300,13 @@ def _active_project_choices():
 
 @app.route("/experiments")
 def experiment_list():
-    experiments = (
-        Experiment.query.join(Project)
-        .options(joinedload(Experiment.project))
-        .filter(Project.active == True)  # noqa: E712
-        .order_by(Experiment.name)
-        .all()
-    )
+    show_archived = request.args.get("show_archived", "0") == "1"
+    q = Experiment.query.join(Project).options(joinedload(Experiment.project))
+    if not show_archived:
+        q = q.filter(Project.active == True, Experiment.active == True)  # noqa: E712
+    experiments = q.order_by(Experiment.name).all()
     users = {u.initials: u.name for u in User.query.all()}
-    return render_template("experiment/list.html", experiments=experiments, users=users)
+    return render_template("experiment/list.html", experiments=experiments, users=users, show_archived=show_archived)
 
 
 @app.route("/experiments/<code>")
@@ -419,8 +435,6 @@ def cell_line_create():
     if form.validate_on_submit():
         cl = CellLine()
         form.populate_obj(cl)
-        if cl.species_id == 0:
-            cl.species_id = None
         db.session.add(cl)
         cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         db.session.commit()
@@ -441,14 +455,10 @@ def cell_line_edit(id):
     form = CellLineForm(obj=cl)
     form.species_id.choices = _species_choices()
     form.virus_ids.choices = _virus_multi_choices()
-    if not cl.species_id:
-        form.species_id.data = 0
     if request.method == "GET":
         form.virus_ids.data = [v.id for v in cl.viruses]
     if form.validate_on_submit():
         form.populate_obj(cl)
-        if cl.species_id == 0:
-            cl.species_id = None
         cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         db.session.commit()
         flash("Cell line updated.", "success")
@@ -695,9 +705,10 @@ def sample_edit(code):
             CellLine.id.in_(form.cell_line_ids.data)
         ).all()
         _nullify_crosslink_fields(sample)
+        code = sample.code
         db.session.commit()
         flash("Sample updated.", "success")
-        return redirect(url_for("sample_detail", code=sample.code))
+        return redirect(url_for("sample_detail", code=code))
     if request.method == "POST":
         flash("Could not save — please check the fields below.", "error")
     return render_template("sample/form.html", form=form, sample=sample)

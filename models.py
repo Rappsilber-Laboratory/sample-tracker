@@ -53,7 +53,7 @@ class Species(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     species_name = db.Column(db.Text, nullable=False)
-    species_taxon = db.Column(db.Text)
+    species_taxon = db.Column(db.Text, nullable=False)
 
     cell_lines = db.relationship("CellLine", back_populates="species")
 
@@ -74,8 +74,8 @@ class CellLine(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     cell_line_name = db.Column(db.Text, nullable=False)
-    cell_line_code = db.Column(db.Text)
-    species_id = db.Column(db.Integer, db.ForeignKey("species.id"))
+    cell_line_code = db.Column(db.Text, nullable=False)
+    species_id = db.Column(db.Integer, db.ForeignKey("species.id"), nullable=False)
 
     species = db.relationship("Species", back_populates="cell_lines")
     viruses = db.relationship("Virus", secondary=cell_line_virus, backref="cell_lines")

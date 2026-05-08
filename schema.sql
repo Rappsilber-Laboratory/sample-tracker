@@ -23,14 +23,14 @@ CREATE TABLE experiment (
 CREATE TABLE species (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     species_name TEXT NOT NULL,
-    species_taxon TEXT
+    species_taxon TEXT NOT NULL
 );
 
 CREATE TABLE cell_line (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cell_line_name TEXT NOT NULL,
-    cell_line_code TEXT,
-    species_id INTEGER REFERENCES species(id)
+    cell_line_code TEXT NOT NULL,
+    species_id INTEGER NOT NULL REFERENCES species(id)
 );
 
 CREATE TABLE mass_spec_sample (

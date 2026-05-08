@@ -11,6 +11,7 @@
   {{ '%.2f' | format(total_size_gb) }} GB
 </p>
 
+<p><strong>Project:</strong> <a href="{{ url_for('project_detail', code=sample.experiment.project.code) }}">{{ sample.experiment.project.name }}</a></p>
 <p><strong>Experiment:</strong> <a href="{{ url_for('experiment_detail', code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></p>
 {% if sample.code %}<p><strong>Code:</strong> {{ sample.code }}</p>{% endif %}
 <p><strong>Type:</strong> {% if sample.crosslinked_sample is none %}—{% elif sample.crosslinked_sample %}Crosslinked{% else %}Identification{% endif %}</p>
@@ -78,8 +79,8 @@
     <tbody>
       {% if sample.crosslinker %}<tr><th>Crosslinker</th><td>{{ sample.crosslinker }}</td></tr>{% endif %}
       {% if sample.crosslinking_type %}<tr><th>Crosslinking Type</th><td>{{ sample.crosslinking_type }}</td></tr>{% endif %}
-      {% if sample.protein_or_cell_concentration %}<tr><th>Protein / Cell Concentration</th><td>{{ sample.protein_or_cell_concentration }}{% if sample.protein_or_cell_concentration_unit %} {{ sample.protein_or_cell_concentration_unit }}{% endif %}</td></tr>{% endif %}
-      {% if sample.crosslinker_or_compound_concentration %}<tr><th>Crosslinker / Compound Concentration</th><td>{{ sample.crosslinker_or_compound_concentration }}{% if sample.crosslinker_or_compound_concentration_unit %} {{ sample.crosslinker_or_compound_concentration_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.protein_or_cell_concentration %}<tr><th>Protein or Cell Concentration</th><td>{{ sample.protein_or_cell_concentration }}{% if sample.protein_or_cell_concentration_unit %} {{ sample.protein_or_cell_concentration_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.crosslinker_or_compound_concentration %}<tr><th>Crosslinker or Compound Concentration</th><td>{{ sample.crosslinker_or_compound_concentration }}{% if sample.crosslinker_or_compound_concentration_unit %} {{ sample.crosslinker_or_compound_concentration_unit }}{% endif %}</td></tr>{% endif %}
       {% if sample.organic_solvent_concentration %}<tr><th>Organic Solvent Concentration</th><td>{{ sample.organic_solvent_concentration }}{% if sample.organic_solvent_concentration_unit %} {{ sample.organic_solvent_concentration_unit }}{% endif %}</td></tr>{% endif %}
       {% if sample.reaction_temperature_in_celsius %}<tr><th>Reaction Temperature</th><td>{{ sample.reaction_temperature_in_celsius }} °C</td></tr>{% endif %}
       {% if sample.reaction_time_in_minutes %}<tr><th>Reaction Time</th><td>{{ sample.reaction_time_in_minutes }} min</td></tr>{% endif %}

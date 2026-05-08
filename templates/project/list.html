@@ -19,6 +19,7 @@
       <th>Experiments</th>
       <th>Samples</th>
       <th>Files</th>
+      <th>Active</th>
       <th>Contact</th>
       <!-- <th>Active</th>
       <th></th> -->
@@ -33,6 +34,7 @@
       <td>{{ exp_counts[project.code] }}</td>
       <td>{{ sample_counts[project.code] }}</td>
       <td>{{ file_counts[project.code] or '' }}</td>
+      <td>{{ 'Active' if project.active else 'Archived' }}</td>
       <td>{{ users.get(project.user_initials, project.user_initials or '') }}</td>
       <!-- <td>
         <input type="checkbox"
