@@ -443,15 +443,15 @@ def cell_line_create():
     return render_template("cell_line/form.html", form=form, cell_line=None)
 
 
-@app.route("/cell-lines/<int:id>")
-def cell_line_detail(id):
-    cl = db.get_or_404(CellLine, id)
+@app.route("/cell-lines/<cellosaurus_id>")
+def cell_line_detail(cellosaurus_id):
+    cl = db.get_or_404(CellLine, cellosaurus_id)
     return render_template("cell_line/detail.html", cell_line=cl)
 
 
-@app.route("/cell-lines/<int:id>/edit", methods=["GET", "POST"])
-def cell_line_edit(id):
-    cl = db.get_or_404(CellLine, id)
+@app.route("/cell-lines/<cellosaurus_id>/edit", methods=["GET", "POST"])
+def cell_line_edit(cellosaurus_id):
+    cl = db.get_or_404(CellLine, cellosaurus_id)
     form = CellLineForm(obj=cl)
     form.species_id.choices = _species_choices()
     form.virus_ids.choices = _virus_multi_choices()
@@ -462,7 +462,7 @@ def cell_line_edit(id):
         cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         db.session.commit()
         flash("Cell line updated.", "success")
-        return redirect(url_for("cell_line_detail", id=cl.id))
+        return redirect(url_for("cell_line_detail", cellosaurus_id=cl.cellosaurus_id))
     return render_template("cell_line/form.html", form=form, cell_line=cl)
 
 
@@ -573,7 +573,7 @@ def _species_multi_choices():
 
 def _cell_line_multi_choices():
     return [
-        (cl.id, cl.cell_line_name)
+        (cl.cellosaurus_id, cl.cell_line_name)
         for cl in CellLine.query.order_by(CellLine.cell_line_name).all()
     ]
 
@@ -627,7 +627,7 @@ def sample_create():
     form.experiment_code.choices = _experiment_choices()
     form.user_initials.choices = _user_initials_choices()
     form.species_ids.choices = _species_multi_choices()
-    form.cell_line_ids.choices = _cell_line_multi_choices()
+    form.cellosaurus_ids.choices = _cell_line_multi_choices()
     if request.method == "GET" and request.args.get("experiment_code"):
         form.experiment_code.data = request.args["experiment_code"]
         experiment = db.session.get(Experiment, request.args["experiment_code"])
@@ -650,7 +650,7 @@ def sample_create():
             Species.id.in_(form.species_ids.data)
         ).all()
         sample.cell_lines = CellLine.query.filter(
-            CellLine.id.in_(form.cell_line_ids.data)
+            CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
         ).all()
         db.session.commit()
         flash("Sample created.", "success")
@@ -683,13 +683,13 @@ def sample_edit(code):
     if sample.user_initials and sample.user_initials not in [c[0] for c in form.user_initials.choices]:
         form.user_initials.choices.append((sample.user_initials, sample.user_initials))
     form.species_ids.choices = _species_multi_choices()
-    form.cell_line_ids.choices = _cell_line_multi_choices()
+    form.cellosaurus_ids.choices = _cell_line_multi_choices()
 
     if request.method == "GET":
         form.crosslinked_sample.data = bool(sample.crosslinked_sample)
         form.quantitation.data = bool(sample.quantitation)
         form.species_ids.data = [s.id for s in sample.species_list]
-        form.cell_line_ids.data = [cl.id for cl in sample.cell_lines]
+        form.cellosaurus_ids.data = [cl.cellosaurus_id for cl in sample.cell_lines]
 
     if form.validate_on_submit():
         is_crosslinked = form.crosslinked_sample.data
@@ -702,7 +702,7 @@ def sample_edit(code):
             Species.id.in_(form.species_ids.data)
         ).all()
         sample.cell_lines = CellLine.query.filter(
-            CellLine.id.in_(form.cell_line_ids.data)
+            CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
         ).all()
         _nullify_crosslink_fields(sample)
         code = sample.code

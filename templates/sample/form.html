@@ -36,7 +36,7 @@
   <details>
     <summary>Cell Lines</summary>
     <fieldset>
-      {{ form.cell_line_ids() }}
+      {{ form.cellosaurus_ids() }}
     </fieldset>
   </details>
 
@@ -60,10 +60,13 @@
       <p>{{ render_field(form.crosslinking_type) }}</p>
       <p>{{ render_field(form.protein_or_cell_concentration) }}</p>
       <p>{{ render_field(form.protein_or_cell_concentration_unit) }}</p>
+      <small class="field-hint">Concentration of proteins or cells in the reaction. For isolated protein samples: molar (e.g. mM) or weight (e.g. mg/mL). For in vivo crosslinking: cell count per volume (e.g. 1 × 10⁶ cells/mL).</small>
       <p>{{ render_field(form.crosslinker_or_compound_concentration) }}</p>
       <p>{{ render_field(form.crosslinker_or_compound_concentration_unit) }}</p>
+      <small class="field-hint">Final concentration of the crosslinker or compound in the reaction mixture — not the stock solution concentration. Typically molar (e.g. mM) or weight (e.g. mg/mL).</small>
       <p>{{ render_field(form.organic_solvent_concentration) }}</p>
       <p>{{ render_field(form.organic_solvent_concentration_unit) }}</p>
+      <small class="field-hint">Final concentration of organic solvent in the reaction (crosslinker stock solutions are sometimes dissolved in organic solvents). Typically molar (e.g. 5 µM) or a volume fraction such as 2% — leave the unit field empty when expressing as v/v %.</small>
       <p>{{ render_field(form.reaction_temperature_in_celsius) }}</p>
       <p>{{ render_field(form.reaction_time_in_minutes) }}</p>
       <p>{{ render_field(form.quenching_reagent) }}</p>
@@ -117,6 +120,13 @@
 
 {% block scripts %}
 <script>
+  const requiredForCrosslink = [
+    'protein_or_cell_concentration',
+    'protein_or_cell_concentration_unit',
+    'crosslinker_or_compound_concentration',
+    'crosslinker_or_compound_concentration_unit',
+  ];
+
   function toggleSampleFields() {
     const cb = document.getElementById('crosslinked_sample');
     const crosslinkFields = document.getElementById('crosslink-fields');
@@ -125,9 +135,17 @@
       crosslinkFields.style.display = '';
       crosslinkFields.open = true;
       identificationFields.style.display = 'none';
+      requiredForCrosslink.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.required = true;
+      });
     } else {
       crosslinkFields.style.display = 'none';
       identificationFields.style.display = '';
+      requiredForCrosslink.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.required = false;
+      });
     }
   }
   document.getElementById('crosslinked_sample').addEventListener('change', toggleSampleFields);

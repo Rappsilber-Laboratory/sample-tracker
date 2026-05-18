@@ -1,18 +1,18 @@
 {% extends "base.html" %}
-{% block title %}{{ cell_line.cell_line_code }} - {{ cell_line.cell_line_name }}{% endblock %}
+{% block title %}{{ cell_line.cellosaurus_id }} - {{ cell_line.cell_line_name }}{% endblock %}
 {% block content %}
 <h2>{{ cell_line.cell_line_name }}</h2>
 <p>
-  <a href="{{ url_for('cell_line_edit', id=cell_line.id) }}">Edit</a>
+  <a href="{{ url_for('cell_line_edit', cellosaurus_id=cell_line.cellosaurus_id) }}">Edit</a>
   &middot;
   <a href="{{ url_for('cell_line_list') }}">Back to Cell Lines</a>
 </p>
 <table>
   <tbody>
     <tr><th>Name</th><td>{{ cell_line.cell_line_name }}</td></tr>
-    {% if cell_line.cell_line_code %}<tr><th>Code</th><td>{{ cell_line.cell_line_code }}</td></tr>{% endif %}
+    <tr><th>Cellosaurus ID</th><td><a href="https://www.cellosaurus.org/{{ cell_line.cellosaurus_id }}" target="_blank" rel="noopener">{{ cell_line.cellosaurus_id }}</a></td></tr>
     {% if cell_line.species %}<tr><th>Species</th><td><a href="{{ url_for('species_detail', id=cell_line.species.id) }}">{{ cell_line.species.species_name }}</a></td></tr>{% endif %}
-    {% if cell_line.viruses %}<tr><th>Viruses</th><td>{{ cell_line.viruses | map(attribute='name') | join(', ') }}</td></tr>{% endif %}
+{#    {% if cell_line.viruses %}<tr><th>Viruses</th><td>{{ cell_line.viruses | map(attribute='name') | join(', ') }}</td></tr>{% endif %}#}
   </tbody>
 </table>
 {% endblock %}

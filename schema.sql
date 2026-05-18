@@ -27,9 +27,8 @@ CREATE TABLE species (
 );
 
 CREATE TABLE cell_line (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cellosaurus_id TEXT NOT NULL PRIMARY KEY,
     cell_line_name TEXT NOT NULL,
-    cell_line_code TEXT NOT NULL,
     species_id INTEGER NOT NULL REFERENCES species(id)
 );
 
@@ -85,9 +84,9 @@ CREATE TABLE virus (
 );
 
 CREATE TABLE cell_line_virus (
-    cell_line_id INTEGER NOT NULL REFERENCES cell_line(id),
+    cellosaurus_id TEXT NOT NULL REFERENCES cell_line(cellosaurus_id),
     virus_id INTEGER NOT NULL REFERENCES virus(id),
-    PRIMARY KEY (cell_line_id, virus_id)
+    PRIMARY KEY (cellosaurus_id, virus_id)
 );
 
 CREATE TABLE sample_species (
@@ -98,8 +97,8 @@ CREATE TABLE sample_species (
 
 CREATE TABLE sample_cell_line (
     sample_code TEXT NOT NULL REFERENCES mass_spec_sample(code),
-    cell_line_id INTEGER NOT NULL REFERENCES cell_line(id),
-    PRIMARY KEY (sample_code, cell_line_id)
+    cellosaurus_id TEXT NOT NULL REFERENCES cell_line(cellosaurus_id),
+    PRIMARY KEY (sample_code, cellosaurus_id)
 );
 
 CREATE TABLE user (

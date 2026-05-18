@@ -8,7 +8,7 @@
     <tr>
       <th>Name</th>
       <th>Taxon</th>
-      <th></th>
+{#      <th></th>#}
     </tr>
   </thead>
   <tbody>
@@ -16,7 +16,7 @@
     <tr>
       <td><a href="{{ url_for('species_detail', id=sp.id) }}">{{ sp.species_name }}</a></td>
       <td>{{ sp.species_taxon or '' }}</td>
-      <td><a href="{{ url_for('species_edit', id=sp.id) }}">Edit</a></td>
+{#      <td><a href="{{ url_for('species_edit', id=sp.id) }}">Edit</a></td>#}
     </tr>
     {% else %}
     <tr><td colspan="3">No species found.</td></tr>

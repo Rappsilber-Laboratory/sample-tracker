@@ -9,7 +9,7 @@ from wtforms import (
     TextAreaField,
     widgets,
 )
-from wtforms.validators import DataRequired, Optional
+from wtforms.validators import DataRequired, Optional, ValidationError
 
 
 class ProjectForm(FlaskForm):
@@ -46,8 +46,8 @@ class VirusForm(FlaskForm):
 
 
 class CellLineForm(FlaskForm):
+    cellosaurus_id = StringField("Cellosaurus ID", validators=[DataRequired()])
     cell_line_name = StringField("Cell Line Name", validators=[DataRequired()])
-    cell_line_code = StringField("Cell Line Code", validators=[DataRequired()])
     species_id = SelectField("Species", coerce=int, validators=[DataRequired()])
     virus_ids = MultiCheckboxField("Viruses", coerce=int)
 
@@ -152,7 +152,23 @@ class MassSpecSampleForm(FlaskForm):
 
     # Many-to-many
     species_ids = MultiCheckboxField("Species", coerce=int)
-    cell_line_ids = MultiCheckboxField("Cell Lines", coerce=int)
+    cellosaurus_ids = MultiCheckboxField("Cell Lines", coerce=str)
+
+    def validate_protein_or_cell_concentration(self, field):
+        if self.crosslinked_sample.data and field.data is None:
+            raise ValidationError('Required for crosslinked samples.')
+
+    def validate_protein_or_cell_concentration_unit(self, field):
+        if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
+            raise ValidationError('Required for crosslinked samples — enter a real unit.')
+
+    def validate_crosslinker_or_compound_concentration(self, field):
+        if self.crosslinked_sample.data and field.data is None:
+            raise ValidationError('Required for crosslinked samples.')
+
+    def validate_crosslinker_or_compound_concentration_unit(self, field):
+        if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
+            raise ValidationError('Required for crosslinked samples — enter a real unit.')
 
 
 class MassSpecAcquisitionForm(FlaskForm):

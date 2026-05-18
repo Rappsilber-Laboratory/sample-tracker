@@ -5,7 +5,7 @@ db = SQLAlchemy()
 # Junction tables
 cell_line_virus = db.Table(
     "cell_line_virus",
-    db.Column("cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True),
+    db.Column("cellosaurus_id", db.Text, db.ForeignKey("cell_line.cellosaurus_id"), primary_key=True),
     db.Column("virus_id", db.Integer, db.ForeignKey("virus.id"), primary_key=True),
 )
 
@@ -18,7 +18,7 @@ sample_species = db.Table(
 sample_cell_line = db.Table(
     "sample_cell_line",
     db.Column("sample_code", db.Text, db.ForeignKey("mass_spec_sample.code"), primary_key=True),
-    db.Column("cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True),
+    db.Column("cellosaurus_id", db.Text, db.ForeignKey("cell_line.cellosaurus_id"), primary_key=True),
 )
 
 
@@ -72,9 +72,8 @@ class Virus(db.Model):
 class CellLine(db.Model):
     __tablename__ = "cell_line"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    cellosaurus_id = db.Column(db.Text, primary_key=True, nullable=False)
     cell_line_name = db.Column(db.Text, nullable=False)
-    cell_line_code = db.Column(db.Text, nullable=False)
     species_id = db.Column(db.Integer, db.ForeignKey("species.id"), nullable=False)
 
     species = db.relationship("Species", back_populates="cell_lines")

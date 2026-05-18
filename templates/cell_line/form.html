@@ -4,19 +4,19 @@
 {% block content %}
 <h2>{{ 'Edit' if cell_line else 'New' }} Cell Line</h2>
 {% if cell_line %}
-  <p><a href="{{ url_for('cell_line_detail', id=cell_line.id) }}">Cancel</a></p>
+  <p><a href="{{ url_for('cell_line_detail', cellosaurus_id=cell_line.cellosaurus_id) }}">Cancel</a></p>
 {% else %}
   <p><a href="{{ url_for('cell_line_list') }}">Cancel</a></p>
 {% endif %}
 <form method="post">
   {{ form.hidden_tag() }}
+  <p>{{ render_field(form.cellosaurus_id) }} <a href="https://www.cellosaurus.org/search" target="_blank" rel="noopener">Look up Cellosaurus ID</a></p>
   <p>{{ render_field(form.cell_line_name) }}</p>
-  <p>{{ render_field(form.cell_line_code) }}</p>
   <p>{{ render_field(form.species_id) }}</p>
-  <p>{{ render_field(form.virus_ids) }}</p>
+{#  <p>{{ render_field(form.virus_ids) }}</p>#}
   <button type="submit">Save</button>
   {% if cell_line %}
-    <a href="{{ url_for('cell_line_detail', id=cell_line.id) }}">Cancel</a>
+    <a href="{{ url_for('cell_line_detail', cellosaurus_id=cell_line.cellosaurus_id) }}">Cancel</a>
   {% else %}
     <a href="{{ url_for('cell_line_list') }}">Cancel</a>
   {% endif %}
