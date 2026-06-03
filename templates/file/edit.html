@@ -56,20 +56,20 @@
     }
   }
 
-  function refreshExperiments(selectedExperimentCode) {
+  function refreshExperiments(selectedExperimentValue) {
     const projectCode = projectSel.value;
     const opts = projectCode
       ? TREE.experiments.filter(e => e.project_code === projectCode)
       : [];
-    fillSelect(experimentSel, opts, 'code', selectedExperimentCode);
+    fillSelect(experimentSel, opts, 'value', selectedExperimentValue);
   }
 
-  function refreshSamples(selectedSampleCode) {
-    const experimentCode = experimentSel.value;
-    const opts = experimentCode
-      ? TREE.samples.filter(s => s.experiment_code === experimentCode)
+  function refreshSamples(selectedSampleValue) {
+    const experimentValue = experimentSel.value;
+    const opts = experimentValue
+      ? TREE.samples.filter(s => s.experiment_value === experimentValue)
       : [];
-    fillSelect(sampleSel, opts, 'code', selectedSampleCode);
+    fillSelect(sampleSel, opts, 'value', selectedSampleValue);
   }
 
   projectSel.addEventListener('change', () => {

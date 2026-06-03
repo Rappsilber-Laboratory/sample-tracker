@@ -5,7 +5,7 @@
 {% block content %}
 <h2>{{ 'Edit' if sample else 'New' }} Sample</h2>
 {% if sample %}
-  <p><a href="{{ url_for('sample_detail', code=sample.code) }}">Cancel</a></p>
+  <p><a href="{{ url_for('sample_detail', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Cancel</a></p>
 {% else %}
   <p><a href="{{ url_for('sample_list') }}">Cancel</a></p>
 {% endif %}
@@ -14,10 +14,11 @@
 
   <fieldset>
     <legend>Basic Info</legend>
-    <p>{{ render_field(form.experiment_code) }}</p>
     {% if sample %}
+    <p><strong>Experiment:</strong> {{ sample.experiment.project_code }} / {{ sample.experiment_code }}</p>
     <p><strong>Code:</strong> {{ sample.code }}</p>
     {% else %}
+    <p>{{ render_field(form.experiment_code) }}</p>
     <p>{{ render_field(form.code) }}</p>
     {% endif %}
     <p>{{ render_field(form.name) }}</p>
@@ -105,7 +106,7 @@
 
   <button type="submit">Save</button>
   {% if sample %}
-    <a href="{{ url_for('sample_detail', code=sample.code) }}">Cancel</a>
+    <a href="{{ url_for('sample_detail', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Cancel</a>
   {% else %}
     <a href="{{ url_for('sample_list') }}">Cancel</a>
   {% endif %}

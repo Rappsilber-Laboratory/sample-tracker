@@ -4,7 +4,7 @@
 {% block content %}
 <h2>Sample: {{ sample.name }}</h2>
 <p>
-  <a href="{{ url_for('sample_edit', code=sample.code) }}">Edit</a>
+  <a href="{{ url_for('sample_edit', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Edit</a>
 </p>
 <p><strong>Summary:</strong>
   {{ file_count }} file{{ '' if file_count == 1 else 's' }},
@@ -12,7 +12,7 @@
 </p>
 
 <p><strong>Project:</strong> <a href="{{ url_for('project_detail', code=sample.experiment.project.code) }}">{{ sample.experiment.project.name }}</a></p>
-<p><strong>Experiment:</strong> <a href="{{ url_for('experiment_detail', code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></p>
+<p><strong>Experiment:</strong> <a href="{{ url_for('experiment_detail', project_code=sample.project_code, code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></p>
 {% if sample.code %}<p><strong>Code:</strong> {{ sample.code }}</p>{% endif %}
 <p><strong>Type:</strong> {% if sample.crosslinked_sample is none %}—{% elif sample.crosslinked_sample %}Crosslinked{% else %}Identification{% endif %}</p>
 {% if sample.user_initials %}<p><strong>Contact:</strong> {{ users.get(sample.user_initials, sample.user_initials) }}</p>{% endif %}

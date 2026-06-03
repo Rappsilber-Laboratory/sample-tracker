@@ -8,7 +8,7 @@
 
 <table>
   <tbody>
-    <tr><th>Sample</th><td>{% if file.sample %}<a href="{{ url_for('sample_detail', code=file.sample_code) }}">{{ file.sample.name }}</a>{% else %}—{% endif %}</td></tr>
+    <tr><th>Sample</th><td>{% if file.sample %}<a href="{{ url_for('sample_detail', project_code=file.project_code, experiment_code=file.experiment_code, code=file.sample_code) }}">{{ file.sample.name }}</a>{% else %}—{% endif %}</td></tr>
     <tr><th>Location</th><td>{{ file.location or '—' }}</td></tr>
     <tr><th>Size</th><td>{{ '%.3f GB'|format(file.size_bytes / 1e9) if file.size_bytes is not none else '—' }}</td></tr>
     <tr><th>Scans</th><td>{{ file.scan_count or '—' }}</td></tr>

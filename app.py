@@ -51,6 +51,28 @@ def _enable_sqlite_foreign_keys(dbapi_connection, connection_record):
         cur.close()
 
 
+# ---------------------------------------------------------------------------
+# Composite-key encoding for SelectField values
+# A bare code is no longer unique, so dropdown values that identify an
+# experiment or sample encode the full parent chain, joined by \x1f (a char
+# that never appears in a code).
+# ---------------------------------------------------------------------------
+TOKEN_SEP = "\x1f"
+
+
+def _exp_token(project_code, experiment_code):
+    return f"{project_code}{TOKEN_SEP}{experiment_code}"
+
+
+def _sample_token(project_code, experiment_code, code):
+    return TOKEN_SEP.join([project_code, experiment_code, code])
+
+
+def _split_token(token):
+    """Split a \x1f-joined token into its parts, or () for an empty value."""
+    return tuple(token.split(TOKEN_SEP)) if token else ()
+
+
 @app.template_filter('wrap_code')
 def wrap_code_filter(s, code, marker, only_first=False):
     if not code or not s:
@@ -127,13 +149,16 @@ def api_tree():
         children = file_nodes(s)
         total = sum(c["total_bytes"] for c in children)
         return {"code": s.code, "name": s.name, "level": "sample", "total_bytes": total,
-                "url": url_for("sample_detail", code=s.code), "children": children}
+                "url": url_for("sample_detail", project_code=s.project_code,
+                               experiment_code=s.experiment_code, code=s.code),
+                "children": children}
 
     def experiment_node(e):
         children = sorted([sample_node(s) for s in e.samples], key=lambda n: n["total_bytes"], reverse=True)
         total = sum(c["total_bytes"] for c in children)
         return {"id": e.code, "name": e.name, "level": "experiment", "total_bytes": total,
-                "url": url_for("experiment_detail", code=e.code), "children": children}
+                "url": url_for("experiment_detail", project_code=e.project_code, code=e.code),
+                "children": children}
 
     def project_node(p):
         children = sorted([experiment_node(e) for e in p.experiments], key=lambda n: n["total_bytes"], reverse=True)
@@ -224,8 +249,8 @@ def project_detail(code):
             Experiment.code.label("experiment_code"),
             func.sum(MassSpecAcquisition.size_bytes).label("total_bytes"),
         )
-        .join(MassSpecSample, MassSpecAcquisition.sample_code == MassSpecSample.code)
-        .join(Experiment, MassSpecSample.experiment_code == Experiment.code)
+        .join(MassSpecAcquisition.sample)
+        .join(MassSpecSample.experiment)
         .filter(Experiment.project_code == code)
         .filter(MassSpecAcquisition.date.isnot(None))
         .group_by(MassSpecAcquisition.date, Experiment.code)
@@ -309,14 +334,18 @@ def experiment_list():
     return render_template("experiment/list.html", experiments=experiments, users=users, show_archived=show_archived)
 
 
-@app.route("/experiments/<code>")
-def experiment_detail(code):
-    experiment = db.get_or_404(Experiment, code)
-    samples = MassSpecSample.query.filter_by(experiment_code=code).order_by(MassSpecSample.name).all()
+@app.route("/projects/<project_code>/experiments/<code>")
+def experiment_detail(project_code, code):
+    experiment = db.get_or_404(Experiment, (project_code, code))
+    samples = (
+        MassSpecSample.query
+        .filter_by(project_code=project_code, experiment_code=code)
+        .order_by(MassSpecSample.name).all()
+    )
     files = (
         MassSpecAcquisition.query.join(MassSpecSample)
         .options(joinedload(MassSpecAcquisition.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
-        .filter(MassSpecSample.experiment_code == code)
+        .filter(MassSpecSample.project_code == project_code, MassSpecSample.experiment_code == code)
         .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
@@ -344,26 +373,27 @@ def experiment_create():
         db.session.commit()
         flash("Experiment created.", "success")
         return redirect(url_for("project_detail", code=experiment.project_code))
-    return render_template("experiment/form.html", form=form, experiment=None)
+    return render_template("experiment/form.html", form=form, experiment=None, samples=[])
 
 
-@app.route("/experiments/<code>/edit", methods=["GET", "POST"])
-def experiment_edit(code):
-    experiment = db.get_or_404(Experiment, code)
-    samples = MassSpecSample.query.filter_by(experiment_code=code).order_by(MassSpecSample.name).all()
+@app.route("/projects/<project_code>/experiments/<code>/edit", methods=["GET", "POST"])
+def experiment_edit(project_code, code):
+    experiment = db.get_or_404(Experiment, (project_code, code))
+    samples = (
+        MassSpecSample.query
+        .filter_by(project_code=project_code, experiment_code=code)
+        .order_by(MassSpecSample.name).all()
+    )
     form = ExperimentForm(obj=experiment)
     del form.code
-    form.project_code.choices = _active_project_choices()
+    # project_code is part of the primary key — re-parenting is not supported.
+    del form.project_code
     form.user_initials.choices = _user_initials_choices()
-    # Ensure current project appears even if archived
-    if experiment.project_code not in [c[0] for c in form.project_code.choices]:
-        p = experiment.project
-        form.project_code.choices.append((p.code, f"{p.code} — {p.name}"))
     if form.validate_on_submit():
         form.populate_obj(experiment)
         db.session.commit()
         flash("Experiment updated.", "success")
-        return redirect(url_for("experiment_detail", code=experiment.code))
+        return redirect(url_for("experiment_detail", project_code=experiment.project_code, code=experiment.code))
     if request.method == "POST":
         flash("Could not save — please check the fields below.", "error")
     return render_template("experiment/form.html", form=form, experiment=experiment, samples=samples)
@@ -564,7 +594,7 @@ def _experiment_choices():
         .order_by(Experiment.name)
         .all()
     )
-    return [(e.code, f"{e.project.code} — {e.name}") for e in experiments]
+    return [(_exp_token(e.project_code, e.code), f"{e.project.code} — {e.name}") for e in experiments]
 
 
 def _species_multi_choices():
@@ -628,9 +658,11 @@ def sample_create():
     form.user_initials.choices = _user_initials_choices()
     form.species_ids.choices = _species_multi_choices()
     form.cellosaurus_ids.choices = _cell_line_multi_choices()
-    if request.method == "GET" and request.args.get("experiment_code"):
-        form.experiment_code.data = request.args["experiment_code"]
-        experiment = db.session.get(Experiment, request.args["experiment_code"])
+    if request.method == "GET" and request.args.get("project_code") and request.args.get("experiment_code"):
+        project_code = request.args["project_code"]
+        experiment_code = request.args["experiment_code"]
+        form.experiment_code.data = _exp_token(project_code, experiment_code)
+        experiment = db.session.get(Experiment, (project_code, experiment_code))
         if experiment and experiment.user_initials:
             form.user_initials.data = experiment.user_initials
     if form.validate_on_submit():
@@ -640,6 +672,7 @@ def sample_create():
         else:
             sample = IdentificationSample()
         form.populate_obj(sample)
+        sample.project_code, sample.experiment_code = _split_token(form.experiment_code.data)
         sample.crosslinked_sample = 1 if is_crosslinked else 0
         sample.quantitation = 1 if form.quantitation.data else 0
         _coerce_select_fields(sample)
@@ -654,13 +687,13 @@ def sample_create():
         ).all()
         db.session.commit()
         flash("Sample created.", "success")
-        return redirect(url_for("experiment_detail", code=sample.experiment_code))
+        return redirect(url_for("experiment_detail", project_code=sample.project_code, code=sample.experiment_code))
     return render_template("sample/form.html", form=form, sample=None)
 
 
-@app.route("/samples/<code>")
-def sample_detail(code):
-    sample = db.get_or_404(MassSpecSample, code)
+@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>")
+def sample_detail(project_code, experiment_code, code):
+    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
     total_size_gb = sum(f.size_bytes or 0 for f in sample.files) / (1024 ** 3)
     users = {u.initials: u.name for u in User.query.all()}
     return render_template(
@@ -669,16 +702,14 @@ def sample_detail(code):
     )
 
 
-@app.route("/samples/<code>/edit", methods=["GET", "POST"])
-def sample_edit(code):
-    sample = db.get_or_404(MassSpecSample, code)
+@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/edit", methods=["GET", "POST"])
+def sample_edit(project_code, experiment_code, code):
+    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
     form = MassSpecSampleForm(obj=sample)
     del form.code
-    form.experiment_code.choices = _experiment_choices()
-    # Ensure current experiment appears even if its project is archived
-    if sample.experiment_code not in [c[0] for c in form.experiment_code.choices]:
-        e = sample.experiment
-        form.experiment_code.choices.append((e.code, f"{e.project.code} — {e.name}"))
+    # experiment_code/project_code are part of the primary key — re-parenting
+    # is not supported, so the experiment selector is omitted on edit.
+    del form.experiment_code
     form.user_initials.choices = _user_initials_choices()
     if sample.user_initials and sample.user_initials not in [c[0] for c in form.user_initials.choices]:
         form.user_initials.choices.append((sample.user_initials, sample.user_initials))
@@ -705,10 +736,10 @@ def sample_edit(code):
             CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
         ).all()
         _nullify_crosslink_fields(sample)
-        code = sample.code
+        key = (sample.project_code, sample.experiment_code, sample.code)
         db.session.commit()
         flash("Sample updated.", "success")
-        return redirect(url_for("sample_detail", code=code))
+        return redirect(url_for("sample_detail", project_code=key[0], experiment_code=key[1], code=key[2]))
     if request.method == "POST":
         flash("Could not save — please check the fields below.", "error")
     return render_template("sample/form.html", form=form, sample=sample)
@@ -730,12 +761,14 @@ def file_list():
     return render_template("file/list.html", files=files, users=users)
 
 
-@app.route("/samples/<code>/db-files/new", methods=["GET", "POST"])
-def file_create(code):
-    sample = db.get_or_404(MassSpecSample, code)
+@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/db-files/new", methods=["GET", "POST"])
+def file_create(project_code, experiment_code, code):
+    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
     form = MassSpecAcquisitionForm()
     if form.validate_on_submit():
-        f = MassSpecAcquisition(sample_code=code)
+        f = MassSpecAcquisition(
+            project_code=project_code, experiment_code=experiment_code, sample_code=code
+        )
         form.populate_obj(f)
         f.meta = form.meta_json.data
         if f.size_bytes is not None:
@@ -743,7 +776,7 @@ def file_create(code):
         db.session.add(f)
         db.session.commit()
         flash("File record created.", "success")
-        return redirect(url_for("sample_edit", code=code))
+        return redirect(url_for("sample_edit", project_code=project_code, experiment_code=experiment_code, code=code))
     return render_template("file/form.html", form=form, file=None, sample=sample)
 
 
@@ -757,13 +790,16 @@ def _file_edit_tree():
     experiments = Experiment.query.order_by(Experiment.name).all()
     samples = MassSpecSample.query.order_by(MassSpecSample.name).all()
     return {
+        # "value" is the encoded token used as the <option> value; "project_code"
+        # / "experiment_value" key the client-side cascade filters.
         "experiments": [
-            {"code": e.code, "project_code": e.project_code,
+            {"value": _exp_token(e.project_code, e.code), "project_code": e.project_code,
              "label": f"{e.code} — {e.name}"}
             for e in experiments
         ],
         "samples": [
-            {"code": s.code, "experiment_code": s.experiment_code,
+            {"value": _sample_token(s.project_code, s.experiment_code, s.code),
+             "experiment_value": _exp_token(s.project_code, s.experiment_code),
              "label": f"{s.code} — {s.name}"}
             for s in samples
         ],
@@ -785,21 +821,22 @@ def file_edit(id):
     form.sample_code.choices = [("", "—")]
     if request.method == "GET" and f.sample is not None:
         e = f.sample.experiment
-        form.experiment_code.choices.append(
-            (e.code, f"{e.code} — {e.name}")
-        )
-        form.sample_code.choices.append(
-            (f.sample.code, f"{f.sample.code} — {f.sample.name}")
-        )
+        exp_token = _exp_token(e.project_code, e.code)
+        sample_token = _sample_token(f.sample.project_code, f.sample.experiment_code, f.sample.code)
+        form.experiment_code.choices.append((exp_token, f"{e.code} — {e.name}"))
+        form.sample_code.choices.append((sample_token, f"{f.sample.code} — {f.sample.name}"))
         form.project_code.data = e.project_code
-        form.experiment_code.data = e.code
-        form.sample_code.data = f.sample.code
+        form.experiment_code.data = exp_token
+        form.sample_code.data = sample_token
     if form.validate_on_submit():
-        # The server only needs sample_code; project/experiment selects are pure
-        # UX scaffolding handled client-side. Accept whatever sample code the
-        # client posted and let the FK constraint reject anything bogus.
-        posted_sample_code = request.form.get("sample_code") or None
-        f.sample_code = posted_sample_code
+        # The server only needs the sample token; project/experiment selects are
+        # pure UX scaffolding handled client-side. Decode the posted token into
+        # the composite key and let the FK constraint reject anything bogus.
+        parts = _split_token(request.form.get("sample_code") or "")
+        if len(parts) == 3:
+            f.project_code, f.experiment_code, f.sample_code = parts
+        else:
+            f.project_code = f.experiment_code = f.sample_code = None
         db.session.commit()
         flash("File association updated.", "success")
         return redirect(url_for("file_detail", id=f.id))
@@ -809,12 +846,12 @@ def file_edit(id):
 @app.route("/files/<int:id>/delete", methods=["POST"])
 def file_delete(id):
     f = db.get_or_404(MassSpecAcquisition, id)
-    sample_code = f.sample_code
+    key = (f.project_code, f.experiment_code, f.sample_code)
     db.session.delete(f)
     db.session.commit()
     flash("File record deleted.", "success")
-    if sample_code:
-        return redirect(url_for("sample_detail", code=sample_code))
+    if all(key):
+        return redirect(url_for("sample_detail", project_code=key[0], experiment_code=key[1], code=key[2]))
     return redirect(url_for("file_list"))
 
 
@@ -827,9 +864,9 @@ def instrument_usage():
             Project.code.label("project_code"),
             func.sum(MassSpecAcquisition.size_bytes).label("total_bytes"),
         )
-        .join(MassSpecSample, MassSpecAcquisition.sample_code == MassSpecSample.code)
-        .join(Experiment, MassSpecSample.experiment_code == Experiment.code)
-        .join(Project, Experiment.project_code == Project.code)
+        .join(MassSpecAcquisition.sample)
+        .join(MassSpecSample.experiment)
+        .join(Experiment.project)
         .filter(MassSpecAcquisition.instrument_initial.isnot(None))
         .filter(MassSpecAcquisition.date.isnot(None))
         .group_by(MassSpecAcquisition.instrument_initial, MassSpecAcquisition.date, Project.code)
@@ -853,9 +890,9 @@ def disk_usage():
             Project.code.label("project_code"),
             func.sum(MassSpecAcquisition.size_bytes).label("total_bytes"),
         )
-        .join(MassSpecSample, MassSpecAcquisition.sample_code == MassSpecSample.code)
-        .join(Experiment, MassSpecSample.experiment_code == Experiment.code)
-        .join(Project, Experiment.project_code == Project.code)
+        .join(MassSpecAcquisition.sample)
+        .join(MassSpecSample.experiment)
+        .join(Experiment.project)
         .group_by(Project.code)
         .order_by(func.sum(MassSpecAcquisition.size_bytes).desc())
         .all()

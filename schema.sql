@@ -12,12 +12,13 @@ CREATE TABLE project (
 );
 
 CREATE TABLE experiment (
-    code TEXT NOT NULL PRIMARY KEY,
     project_code TEXT NOT NULL REFERENCES project(code),
+    code TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     user_initials TEXT NOT NULL,
-    active INTEGER NOT NULL DEFAULT 1
+    active INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (project_code, code)
 );
 
 CREATE TABLE species (
@@ -33,8 +34,9 @@ CREATE TABLE cell_line (
 );
 
 CREATE TABLE mass_spec_sample (
-    code TEXT NOT NULL PRIMARY KEY,
-    experiment_code TEXT NOT NULL REFERENCES experiment(code),
+    project_code TEXT NOT NULL,
+    experiment_code TEXT NOT NULL,
+    code TEXT NOT NULL,
     name TEXT NOT NULL,
     description TEXT NOT NULL,
     user_initials TEXT NOT NULL,
@@ -73,7 +75,11 @@ CREATE TABLE mass_spec_sample (
     uv_wavelength_in_nanometers REAL,
 
     -- IdentificationSample columns (used when crosslinked_sample = 0)
-    peptide_level_fraction TEXT
+    peptide_level_fraction TEXT,
+
+    PRIMARY KEY (project_code, experiment_code, code),
+    FOREIGN KEY (project_code, experiment_code)
+        REFERENCES experiment(project_code, code)
 );
 
 CREATE TABLE virus (
@@ -90,15 +96,23 @@ CREATE TABLE cell_line_virus (
 );
 
 CREATE TABLE sample_species (
-    sample_code TEXT NOT NULL REFERENCES mass_spec_sample(code),
+    project_code TEXT NOT NULL,
+    experiment_code TEXT NOT NULL,
+    sample_code TEXT NOT NULL,
     species_id INTEGER NOT NULL REFERENCES species(id),
-    PRIMARY KEY (sample_code, species_id)
+    PRIMARY KEY (project_code, experiment_code, sample_code, species_id),
+    FOREIGN KEY (project_code, experiment_code, sample_code)
+        REFERENCES mass_spec_sample(project_code, experiment_code, code)
 );
 
 CREATE TABLE sample_cell_line (
-    sample_code TEXT NOT NULL REFERENCES mass_spec_sample(code),
+    project_code TEXT NOT NULL,
+    experiment_code TEXT NOT NULL,
+    sample_code TEXT NOT NULL,
     cellosaurus_id TEXT NOT NULL REFERENCES cell_line(cellosaurus_id),
-    PRIMARY KEY (sample_code, cellosaurus_id)
+    PRIMARY KEY (project_code, experiment_code, sample_code, cellosaurus_id),
+    FOREIGN KEY (project_code, experiment_code, sample_code)
+        REFERENCES mass_spec_sample(project_code, experiment_code, code)
 );
 
 CREATE TABLE user (
@@ -109,7 +123,9 @@ CREATE TABLE user (
 
 CREATE TABLE mass_spec_acquisition (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    sample_code TEXT REFERENCES mass_spec_sample(code),
+    project_code TEXT,
+    experiment_code TEXT,
+    sample_code TEXT,
     location TEXT,
     filename TEXT,
     size_bytes INTEGER,
@@ -117,5 +133,7 @@ CREATE TABLE mass_spec_acquisition (
     date DATE,
     user_initials TEXT,
     scan_count INTEGER,
-    meta TEXT
+    meta TEXT,
+    FOREIGN KEY (project_code, experiment_code, sample_code)
+        REFERENCES mass_spec_sample(project_code, experiment_code, code)
 );

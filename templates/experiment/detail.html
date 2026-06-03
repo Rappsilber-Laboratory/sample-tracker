@@ -4,7 +4,7 @@
 {% block content %}
 <h2>Experiment: {{ experiment.name }}</h2>
 <p>
-  <a href="{{ url_for('experiment_edit', code=experiment.code) }}">Edit Experiment</a>
+  <a href="{{ url_for('experiment_edit', project_code=experiment.project_code, code=experiment.code) }}">Edit Experiment</a>
 </p>
 
 <p><strong>Project:</strong> <a href="{{ url_for('project_detail', code=experiment.project.code) }}">{{ experiment.project.code }} — {{ experiment.project.name }}</a></p>
@@ -20,7 +20,7 @@
 
 <details>
   <summary>Samples</summary>
-  <p><a href="{{ url_for('sample_create', experiment_code=experiment.code) }}">New Sample</a></p>
+  <p><a href="{{ url_for('sample_create', project_code=experiment.project_code, experiment_code=experiment.code) }}">New Sample</a></p>
   {{ sample_table(samples, show_experiment=false, show_project=false, users=users) }}
 </details>
 

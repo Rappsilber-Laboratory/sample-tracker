@@ -11,14 +11,26 @@ cell_line_virus = db.Table(
 
 sample_species = db.Table(
     "sample_species",
-    db.Column("sample_code", db.Text, db.ForeignKey("mass_spec_sample.code"), primary_key=True),
+    db.Column("project_code", db.Text, primary_key=True),
+    db.Column("experiment_code", db.Text, primary_key=True),
+    db.Column("sample_code", db.Text, primary_key=True),
     db.Column("species_id", db.Integer, db.ForeignKey("species.id"), primary_key=True),
+    db.ForeignKeyConstraint(
+        ["project_code", "experiment_code", "sample_code"],
+        ["mass_spec_sample.project_code", "mass_spec_sample.experiment_code", "mass_spec_sample.code"],
+    ),
 )
 
 sample_cell_line = db.Table(
     "sample_cell_line",
-    db.Column("sample_code", db.Text, db.ForeignKey("mass_spec_sample.code"), primary_key=True),
+    db.Column("project_code", db.Text, primary_key=True),
+    db.Column("experiment_code", db.Text, primary_key=True),
+    db.Column("sample_code", db.Text, primary_key=True),
     db.Column("cellosaurus_id", db.Text, db.ForeignKey("cell_line.cellosaurus_id"), primary_key=True),
+    db.ForeignKeyConstraint(
+        ["project_code", "experiment_code", "sample_code"],
+        ["mass_spec_sample.project_code", "mass_spec_sample.experiment_code", "mass_spec_sample.code"],
+    ),
 )
 
 
@@ -37,8 +49,8 @@ class Project(db.Model):
 class Experiment(db.Model):
     __tablename__ = "experiment"
 
+    project_code = db.Column(db.Text, db.ForeignKey("project.code"), primary_key=True, nullable=False)
     code = db.Column(db.Text, primary_key=True, nullable=False)
-    project_code = db.Column(db.Text, db.ForeignKey("project.code"), nullable=False)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text, nullable=False)
     user_initials = db.Column(db.Text, nullable=False)
@@ -83,8 +95,9 @@ class CellLine(db.Model):
 class MassSpecSample(db.Model):
     __tablename__ = "mass_spec_sample"
 
+    project_code = db.Column(db.Text, primary_key=True, nullable=False)
+    experiment_code = db.Column(db.Text, primary_key=True, nullable=False)
     code = db.Column(db.Text, primary_key=True, nullable=False)
-    experiment_code = db.Column(db.Text, db.ForeignKey("experiment.code"), nullable=False)
     name = db.Column(db.Text, nullable=False)
     description = db.Column(db.Text, nullable=False)
     user_initials = db.Column(db.Text, nullable=False)
@@ -125,6 +138,13 @@ class MassSpecSample(db.Model):
     # IdentificationSample columns (crosslinked_sample = 0)
     peptide_level_fraction = db.Column(db.Text)
 
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ["project_code", "experiment_code"],
+            ["experiment.project_code", "experiment.code"],
+        ),
+    )
+
     # Polymorphic identity
     __mapper_args__ = {
         "polymorphic_on": crosslinked_sample,
@@ -160,7 +180,9 @@ class MassSpecAcquisition(db.Model):
     __tablename__ = "mass_spec_acquisition"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    sample_code = db.Column(db.Text, db.ForeignKey("mass_spec_sample.code"), nullable=True)
+    project_code = db.Column(db.Text, nullable=True)
+    experiment_code = db.Column(db.Text, nullable=True)
+    sample_code = db.Column(db.Text, nullable=True)
     location = db.Column(db.Text)
     filename = db.Column(db.Text)
     size_bytes = db.Column(db.Integer)
@@ -169,6 +191,13 @@ class MassSpecAcquisition(db.Model):
     user_initials = db.Column(db.Text)
     scan_count = db.Column(db.Integer)
     meta = db.Column(db.Text)
+
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ["project_code", "experiment_code", "sample_code"],
+            ["mass_spec_sample.project_code", "mass_spec_sample.experiment_code", "mass_spec_sample.code"],
+        ),
+    )
 
     sample = db.relationship(
         "MassSpecSample",
