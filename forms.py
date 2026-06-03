@@ -170,26 +170,6 @@ class MassSpecSampleForm(FlaskForm):
         if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
             raise ValidationError('Required for crosslinked samples — enter a real unit.')
 
-    def validate_crosslinker(self, field):
-        if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
-            raise ValidationError('Required for crosslinked samples.')
-
-    def validate_crosslinking_type(self, field):
-        if self.crosslinked_sample.data and not field.data:
-            raise ValidationError('Required for crosslinked samples.')
-
-    def validate_reaction_temperature_in_celsius(self, field):
-        if self.crosslinked_sample.data and field.data is None:
-            raise ValidationError('Required for crosslinked samples.')
-
-    def validate_reaction_time_in_minutes(self, field):
-        if self.crosslinked_sample.data and field.data is None:
-            raise ValidationError('Required for crosslinked samples.')
-
-    def validate_quenching_reagent(self, field):
-        if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
-            raise ValidationError('Required for crosslinked samples.')
-
 
 class MassSpecAcquisitionForm(FlaskForm):
     location = StringField("Location", validators=[Optional()])
