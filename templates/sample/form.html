@@ -122,10 +122,15 @@
 {% block scripts %}
 <script>
   const requiredForCrosslink = [
+    'crosslinker',
+    'crosslinking_type',
     'protein_or_cell_concentration',
     'protein_or_cell_concentration_unit',
     'crosslinker_or_compound_concentration',
     'crosslinker_or_compound_concentration_unit',
+    'reaction_temperature_in_celsius',
+    'reaction_time_in_minutes',
+    'quenching_reagent',
   ];
 
   function toggleSampleFields() {
