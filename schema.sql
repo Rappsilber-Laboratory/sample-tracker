@@ -1,44 +1,45 @@
--- Sample Tracker SQLite Schema
+-- Mass Spec Acquisition Tracker SQLite Schema
 -- Based on sampleTracker13.dia UML diagram
 
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE project (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    code TEXT NOT NULL,
+    code TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,
-    description TEXT,
-    contact_person TEXT,
+    description TEXT NOT NULL,
+    user_initials TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE experiment (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    project_id INTEGER NOT NULL REFERENCES project(id),
+    project_code TEXT NOT NULL REFERENCES project(code),
+    code TEXT NOT NULL,
     name TEXT NOT NULL,
-    description TEXT,
-    contact_person TEXT
+    description TEXT NOT NULL,
+    user_initials TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (project_code, code)
 );
 
 CREATE TABLE species (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     species_name TEXT NOT NULL,
-    species_taxon TEXT
+    species_taxon TEXT NOT NULL
 );
 
 CREATE TABLE cell_line (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cellosaurus_id TEXT NOT NULL PRIMARY KEY,
     cell_line_name TEXT NOT NULL,
-    cell_line_code TEXT,
-    species_id INTEGER REFERENCES species(id)
+    species_id INTEGER NOT NULL REFERENCES species(id)
 );
 
-CREATE TABLE sample (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    experiment_id INTEGER NOT NULL REFERENCES experiment(id),
+CREATE TABLE mass_spec_sample (
+    project_code TEXT NOT NULL,
+    experiment_code TEXT NOT NULL,
+    code TEXT NOT NULL,
     name TEXT NOT NULL,
-    comment TEXT,
-    file_name_root TEXT,
+    description TEXT NOT NULL,
+    user_initials TEXT NOT NULL,
     disease TEXT,
     phenotype TEXT,
     isotope_labeling_channel TEXT,
@@ -74,7 +75,11 @@ CREATE TABLE sample (
     uv_wavelength_in_nanometers REAL,
 
     -- IdentificationSample columns (used when crosslinked_sample = 0)
-    peptide_level_fraction TEXT
+    peptide_level_fraction TEXT,
+
+    PRIMARY KEY (project_code, experiment_code, code),
+    FOREIGN KEY (project_code, experiment_code)
+        REFERENCES experiment(project_code, code)
 );
 
 CREATE TABLE virus (
@@ -85,19 +90,50 @@ CREATE TABLE virus (
 );
 
 CREATE TABLE cell_line_virus (
-    cell_line_id INTEGER NOT NULL REFERENCES cell_line(id),
+    cellosaurus_id TEXT NOT NULL REFERENCES cell_line(cellosaurus_id),
     virus_id INTEGER NOT NULL REFERENCES virus(id),
-    PRIMARY KEY (cell_line_id, virus_id)
+    PRIMARY KEY (cellosaurus_id, virus_id)
 );
 
 CREATE TABLE sample_species (
-    sample_id INTEGER NOT NULL REFERENCES sample(id),
+    project_code TEXT NOT NULL,
+    experiment_code TEXT NOT NULL,
+    sample_code TEXT NOT NULL,
     species_id INTEGER NOT NULL REFERENCES species(id),
-    PRIMARY KEY (sample_id, species_id)
+    PRIMARY KEY (project_code, experiment_code, sample_code, species_id),
+    FOREIGN KEY (project_code, experiment_code, sample_code)
+        REFERENCES mass_spec_sample(project_code, experiment_code, code)
 );
 
 CREATE TABLE sample_cell_line (
-    sample_id INTEGER NOT NULL REFERENCES sample(id),
-    cell_line_id INTEGER NOT NULL REFERENCES cell_line(id),
-    PRIMARY KEY (sample_id, cell_line_id)
+    project_code TEXT NOT NULL,
+    experiment_code TEXT NOT NULL,
+    sample_code TEXT NOT NULL,
+    cellosaurus_id TEXT NOT NULL REFERENCES cell_line(cellosaurus_id),
+    PRIMARY KEY (project_code, experiment_code, sample_code, cellosaurus_id),
+    FOREIGN KEY (project_code, experiment_code, sample_code)
+        REFERENCES mass_spec_sample(project_code, experiment_code, code)
+);
+
+CREATE TABLE user (
+    initials TEXT PRIMARY KEY NOT NULL,
+    name TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE mass_spec_acquisition (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_code TEXT,
+    experiment_code TEXT,
+    sample_code TEXT,
+    location TEXT,
+    filename TEXT,
+    size_bytes INTEGER,
+    instrument_initial TEXT,
+    date DATE,
+    user_initials TEXT,
+    scan_count INTEGER,
+    meta TEXT,
+    FOREIGN KEY (project_code, experiment_code, sample_code)
+        REFERENCES mass_spec_sample(project_code, experiment_code, code)
 );

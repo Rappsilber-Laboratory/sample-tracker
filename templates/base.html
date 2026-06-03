@@ -1,22 +1,27 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="color-scheme: light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Sample Tracker{% endblock %}</title>
-  <link rel="stylesheet" href="https://cdn.simplecss.org/simple.min.css">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}Mass Spec Acquisition Tracker{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='simple.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
   <header>
-    <h1><a href="{{ url_for('index') }}">Sample Tracker</a></h1>
     <nav>
-      <a href="{{ url_for('project_list') }}">Projects</a>
-      <a href="{{ url_for('experiment_list') }}">Experiments</a>
-      <a href="{{ url_for('sample_list') }}">Samples</a>
-      <a href="{{ url_for('species_list') }}">Species</a>
-      <a href="{{ url_for('cell_line_list') }}">Cell Lines</a>
-      <a href="{{ url_for('virus_list') }}">Viruses</a>
+      <a href="{{ url_for('project_list') }}">{{ nav_counts.get('projects', '') }} Projects</a>
+      <a href="{{ url_for('experiment_list') }}">{{ nav_counts.get('experiments', '') }} Experiments</a>
+      <a href="{{ url_for('sample_list') }}">{{ nav_counts.get('samples', '') }} Samples</a>
+      <a href="{{ url_for('species_list') }}">{{ nav_counts.get('species', '') }} Species</a>
+      <a href="{{ url_for('cell_line_list') }}">{{ nav_counts.get('cell_lines', '') }} Cell Lines</a>
+      <a href="{{ url_for('virus_list') }}">{{ nav_counts.get('viruses', '') }} Viruses</a>
+      <a href="{{ url_for('file_list') }}">{{ nav_counts.get('files', '') }} Files</a>
+      <a href="{{ url_for('user_list') }}">{{ nav_counts.get('users', '') }} Users</a>
+{#      <a href="{{ url_for('instrument_usage') }}">Instrument Usage</a>#}
+{#      <a href="{{ url_for('disk_usage') }}">Disk Usage</a>#}
+{#      <a href="{{ url_for('about') }}">About</a>#}
     </nav>
   </header>
   <main>
@@ -29,9 +34,6 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
-  <footer>
-    <p>Sample Tracker &mdash; Internal Lab Tool</p>
-  </footer>
   {% block scripts %}{% endblock %}
 </body>
 </html>

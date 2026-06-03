@@ -1,0 +1,125 @@
+{% macro experiment_table(experiments, show_project=true, show_samples=true, users={}) %}
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Name</th>
+      {% if show_project %}<th>Project</th>{% endif %}
+      <th>Description</th>
+      {% if show_samples %}<th>Samples</th>{% endif %}
+      <th>Files</th>
+      <th>Active</th>
+      <th>Contact</th>
+      {# <th></th> #}
+    </tr>
+  </thead>
+  <tbody>
+    {% for experiment in experiments %}
+    {% set ns = namespace(file_count=0) %}
+    {% for sample in experiment.samples %}{% set ns.file_count = ns.file_count + (sample.files | length) %}{% endfor %}
+    <tr>
+      <td>{{ experiment.code }}</td>
+      <td><a href="{{ url_for('experiment_detail', project_code=experiment.project_code, code=experiment.code) }}">{{ experiment.name }}</a></td>
+      {% if show_project %}<td><a href="{{ url_for('project_detail', code=experiment.project.code) }}">{{ experiment.project.name }}</a></td>{% endif %}
+      <td>{{ experiment.description or '' }}</td>
+      {% if show_samples %}<td>{{ experiment.samples | length }}</td>{% endif %}
+      <td>{{ ns.file_count or '' }}</td>
+      <td>{{ 'Active' if experiment.active else 'Archived' }}</td>
+      <td>{{ users.get(experiment.user_initials, experiment.user_initials) if experiment.user_initials else '' }}</td>
+      {# <td><a href="{{ url_for('experiment_edit', project_code=experiment.project_code, code=experiment.code) }}">Edit</a></td> #}
+    </tr>
+    {% else %}
+    <tr><td colspan="{{ 8 + (1 if show_project else 0) + (1 if show_samples else 0) }}">No experiments found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{% macro sample_table(samples, show_experiment=true, show_project=true, users={}) %}
+{% set colspan = 7 + (1 if show_experiment else 0) + (1 if show_project else 0) %}
+<table>
+  <thead>
+    <tr>
+      <th>Code</th>
+      <th>Name</th>
+      <th>Description</th>
+      {% if show_project %}<th>Project</th>{% endif %}
+      {% if show_experiment %}<th>Experiment</th>{% endif %}
+      <th>Type</th>
+      <th>Files</th>
+      <th>Contact</th>
+      {# <th></th> #}
+    </tr>
+  </thead>
+  <tbody>
+    {% for sample in samples %}
+    <tr>
+      <td>{{ sample.code or '' }}</td>
+      <td><a href="{{ url_for('sample_detail', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">{{ sample.name }}</a></td>
+      <td>{{ sample.description or '' }}</td>
+      {% if show_project %}<td><a href="{{ url_for('project_detail', code=sample.experiment.project_code) }}">{{ sample.experiment.project.name }}</a></td>{% endif %}
+      {% if show_experiment %}<td><a href="{{ url_for('experiment_detail', project_code=sample.project_code, code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></td>{% endif %}
+      <td>{% if sample.crosslinked_sample is none %}—{% elif sample.crosslinked_sample %}Crosslinked{% else %}Identification{% endif %}</td>
+      <td>{{ sample.files | length or '' }}</td>
+      <td>{{ users.get(sample.user_initials, sample.user_initials) if sample.user_initials else '—' }}</td>
+      {# <td><a href="{{ url_for('sample_edit', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Edit</a></td> #}
+    </tr>
+    {% else %}
+    <tr><td colspan="{{ colspan }}">No samples found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}
+
+
+{% macro highlight_codes(filename, p_code, e_code, s_code) -%}
+  {%- set name = filename or '' -%}
+  {%- if s_code -%}{%- set name = name|wrap_code(s_code, 's') -%}{%- endif -%}
+  {%- if e_code -%}{%- set name = name|wrap_code(e_code, 'e') -%}{%- endif -%}
+  {%- if p_code -%}{%- set name = name|wrap_code(p_code, 'p', true) -%}{%- endif -%}
+  {%- set name = name|e
+        |replace('\x01p\x02', '<span class="hl-project">'|safe)
+        |replace('\x01e\x02', '<span class="hl-experiment">'|safe)
+        |replace('\x01s\x02', '<span class="hl-sample">'|safe)
+        |replace('\x03', '</span>'|safe) -%}
+  {{ name }}
+{%- endmacro %}
+
+
+{% macro file_table(files, users={}) %}
+<table>
+  <thead>
+    <tr>
+      <th>Date</th>
+      <th>File</th>
+      <th>Location</th>
+      <th>Project</th>
+      <th>Experiment</th>
+      <th>Sample</th>
+      <th>Size (GB)</th>
+      <th>Scans</th>
+      <th>Contact</th>
+      {# <th></th> #}
+    </tr>
+  </thead>
+  <tbody>
+    {% for f in files %}
+    <tr>
+      <td>{{ f.date or '' }}</td>
+      <td><a href="{{ url_for('file_detail', id=f.id) }}">{% if f.sample %}{{ highlight_codes(f.filename or f.id|string, f.sample.experiment.project.code, f.sample.experiment.code, f.sample.code) }}{% else %}{{ f.filename or f.id }}{% endif %}</a></td>
+      <td>{{ f.location or '' }}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('project_detail', code=f.sample.experiment.project_code) }}">{{ f.sample.experiment.project.name }}</a>{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('experiment_detail', project_code=f.sample.project_code, code=f.sample.experiment_code) }}">{{ f.sample.experiment.name }}</a>{% else %}—{% endif %}</td>
+      <td>{% if f.sample %}<a href="{{ url_for('sample_detail', project_code=f.sample.project_code, experiment_code=f.sample.experiment_code, code=f.sample.code) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>
+      <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>
+      <td>{{ f.scan_count or '' }}</td>
+      <td>{{ users.get(f.user_initials, f.user_initials) if f.user_initials else '—' }}</td>
+      {# <td><a href="{{ url_for('file_edit', id=f.id) }}">Edit</a></td> #}
+    </tr>
+    {% else %}
+    <tr><td colspan="10">No file records found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}

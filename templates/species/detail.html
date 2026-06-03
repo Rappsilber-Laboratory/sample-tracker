@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}{{ species.species_name }}{% endblock %}
+{% block content %}
+<h2>{{ species.species_name }}</h2>
+<p>
+  <a href="{{ url_for('species_edit', id=species.id) }}">Edit</a>
+  &middot;
+  <a href="{{ url_for('species_list') }}">Back to Species</a>
+</p>
+<table>
+  <tbody>
+    <tr><th>Name</th><td>{{ species.species_name }}</td></tr>
+    {% if species.species_taxon %}<tr><th>Taxon</th><td>{{ species.species_taxon }}</td></tr>{% endif %}
+  </tbody>
+</table>
+{% endblock %}

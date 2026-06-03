@@ -1,43 +1,151 @@
 {% extends "base.html" %}
-{% block title %}{{ project.name }} — Sample Tracker{% endblock %}
+{% from "_tables.html" import experiment_table, sample_table, file_table %}
+{% block title %}{{ project.code }} - {{ project.name }}{% endblock %}
 {% block content %}
-<h2>{{ project.code }} — {{ project.name }}</h2>
+<h2>Project: {{ project.code }} — {{ project.name }}</h2>
 <p>
-  <a href="{{ url_for('project_edit', id=project.id) }}">Edit Project</a>
-  &middot;
-  <a href="{{ url_for('project_list') }}">Back to Projects</a>
+  <a href="{{ url_for('project_edit', code=project.code) }}">Edit Project</a>
 </p>
 
-{% if project.description %}
-<p>{{ project.description }}</p>
-{% endif %}
-{% if project.contact_person %}
-<p><strong>Contact:</strong> {{ project.contact_person }}</p>
-{% endif %}
+{% if project.description %}<p>{{ project.description }}</p>{% endif %}
+<p><strong>Contact:</strong> {{ contact_name }}</p>
 <p><strong>Status:</strong> {{ 'Active' if project.active else 'Archived' }}</p>
+<p><strong>Summary:</strong>
+  {{ experiment_count }} experiment{{ '' if experiment_count == 1 else 's' }},
+  {{ sample_count }} sample{{ '' if sample_count == 1 else 's' }},
+  {{ file_count }} file{{ '' if file_count == 1 else 's' }},
+  {{ '%.2f' | format(total_size_gb) }} GB
+</p>
 
-<h3>Experiments</h3>
-<p><a href="{{ url_for('experiment_create', project_id=project.id) }}">New Experiment</a></p>
-<table>
-  <thead>
-    <tr>
-      <th>Name</th>
-      <th>Contact</th>
-      <th>Samples</th>
-      <th></th>
-    </tr>
-  </thead>
-  <tbody>
-    {% for experiment in experiments %}
-    <tr>
-      <td><a href="{{ url_for('experiment_detail', id=experiment.id) }}">{{ experiment.name }}</a></td>
-      <td>{{ experiment.contact_person or '' }}</td>
-      <td>{{ experiment.samples | length }}</td>
-      <td><a href="{{ url_for('experiment_edit', id=experiment.id) }}">Edit</a></td>
-    </tr>
-    {% else %}
-    <tr><td colspan="4">No experiments yet.</td></tr>
-    {% endfor %}
-  </tbody>
-</table>
+<details open>
+  <summary>Experiments</summary>
+  <p><a href="{{ url_for('experiment_create', project_code=project.code) }}">New Experiment</a></p>
+  {{ experiment_table(experiments, show_project=false, users=users) }}
+</details>
+
+<details>
+  <summary>Samples</summary>
+  {{ sample_table(samples, show_project=false, users=users) }}
+</details>
+
+<details>
+  <summary>Files</summary>
+  {{ file_table(files, users) }}
+</details>
+
+{% if chart_data %}
+<h3>Experiments over Time</h3>
+<div id="exp-chart"></div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if chart_data %}
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script>
+const records = {{ chart_data | tojson }};
+
+const margin = {top: 20, right: 20, bottom: 70, left: 70};
+const width = 800 - margin.left - margin.right;
+const height = 320 - margin.top - margin.bottom;
+
+const tooltip = d3.select('body').append('div')
+  .style('position', 'fixed')
+  .style('background', 'rgba(0,0,0,0.75)')
+  .style('color', '#fff')
+  .style('padding', '4px 8px')
+  .style('border-radius', '4px')
+  .style('font-size', '12px')
+  .style('pointer-events', 'none')
+  .style('display', 'none');
+
+const allExperiments = [...new Set(records.map(r => r.experiment))].sort();
+const colour = d3.scaleOrdinal()
+  .range(["#38cae3","#d4582b","#7d5fd7","#7cd352","#ce4bbb","#5aa33c","#93539d","#d2c33b","#5c83d4","#e19a46","#d891d7","#65da9a","#9d772f","#d43f4c","#4db186","#cf4b7e","#477c3a","#c46d5c","#b6c671","#798126"])
+  .domain(allExperiments);
+
+const dates = [...new Set(records.map(r => r.date))].sort();
+
+const byDate = Object.fromEntries(dates.map(d => [d, {date: d}]));
+for (const r of records) {
+  byDate[r.date][r.experiment] = (byDate[r.date][r.experiment] || 0) + r.gb;
+}
+const pivoted = dates.map(d => byDate[d]);
+
+const stack = d3.stack().keys(allExperiments).value((d, k) => d[k] || 0);
+const series = stack(pivoted);
+
+const x = d3.scaleBand().domain(dates).range([0, width]).padding(0.15);
+const yMax = d3.max(pivoted, d => allExperiments.reduce((s, e) => s + (d[e] || 0), 0));
+const y = d3.scaleLinear().domain([0, yMax * 1.05]).nice().range([height, 0]);
+
+const wrapper = document.getElementById('exp-chart');
+
+const svg = d3.select(wrapper).append('svg')
+  .attr('width', width + margin.left + margin.right)
+  .attr('height', height + margin.top + margin.bottom)
+  .append('g')
+  .attr('transform', `translate(${margin.left},${margin.top})`);
+
+svg.selectAll('g.layer')
+  .data(series)
+  .join('g')
+    .attr('class', 'layer')
+    .attr('fill', d => colour(d.key))
+  .selectAll('rect')
+  .data(d => d)
+  .join('rect')
+    .attr('x', d => x(d.data.date))
+    .attr('y', d => y(d[1]))
+    .attr('height', d => y(d[0]) - y(d[1]))
+    .attr('width', x.bandwidth())
+    .on('mousemove', function(event, d) {
+      tooltip
+        .style('display', 'block')
+        .style('left', (event.clientX + 12) + 'px')
+        .style('top',  (event.clientY - 28) + 'px')
+        .text(d3.select(this.parentNode).datum().key);
+    })
+    .on('mouseleave', () => tooltip.style('display', 'none'));
+
+const tickEvery = Math.max(1, Math.ceil(dates.length / 20));
+svg.append('g')
+  .attr('transform', `translate(0,${height})`)
+  .call(d3.axisBottom(x).tickValues(dates.filter((_, i) => i % tickEvery === 0)))
+  .selectAll('text')
+    .attr('transform', 'rotate(-45)')
+    .style('text-anchor', 'end');
+
+svg.append('g').call(d3.axisLeft(y));
+
+svg.append('text')
+  .attr('transform', 'rotate(-90)')
+  .attr('y', -margin.left + 15)
+  .attr('x', -height / 2)
+  .attr('text-anchor', 'middle')
+  .style('font-size', '12px')
+  .text('GB acquired');
+
+const legend = d3.select(wrapper).append('div')
+  .style('display', 'flex')
+  .style('flex-wrap', 'wrap')
+  .style('gap', '0.5rem')
+  .style('margin-top', '0.25rem');
+
+allExperiments.forEach(e => {
+  const item = legend.append('span')
+    .style('display', 'inline-flex')
+    .style('align-items', 'center')
+    .style('gap', '4px')
+    .style('font-size', '12px');
+  item.append('span')
+    .style('display', 'inline-block')
+    .style('width', '12px')
+    .style('height', '12px')
+    .style('background', colour(e))
+    .style('flex-shrink', '0');
+  item.append('span').text(e);
+});
+</script>
+{% endif %}
 {% endblock %}

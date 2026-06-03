@@ -1,3 +1,55 @@
+/* force light theme regardless of OS dark mode */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: light;
+    --bg: #fff;
+    --accent-bg: #f5f7ff;
+    --text: #212121;
+    --text-light: #585858;
+    --border: #898ea4;
+    --accent: #0d47a1;
+    --accent-hover: #1266e2;
+    --accent-text: var(--bg);
+    --code: #d81b60;
+    --preformatted: #444;
+    --disabled: #efefef;
+  }
+}
+
+/* full-viewport flex layout: nav pinned on top, <main> is the scroll region */
+html, body { height: 100%; }
+body {
+  grid-template-columns: 1fr !important;  /* override Simple CSS grid */
+  display: flex !important;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  font-size: 0.92rem;
+}
+body > * { grid-column: 1 !important; }
+body > header { padding: 0.4rem 1.5rem; text-align: left; flex: none; }
+main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-left: 1.5rem;
+}
+h1, h2, h3 { font-size: 1.15em; }
+nav a { font-size: 0.92rem; }
+table { font-size: 0.88rem; }
+input, select, textarea, button { font-size: 0.92rem; }
+label { font-size: 0.92rem; }
+
+#dashboard {
+  display: flex;
+  align-items: stretch;
+  gap: 1.5rem;
+  height: 100%;
+}
+#stats-panel { flex-shrink: 0; font-size: 0.8rem; }
+#stats-panel table { font-size: 0.8rem; }
+#tree-container { flex: 1; height: 100%; overflow-y: auto; }
+
 .flash {
   padding: 0.75rem 1rem;
   border-radius: 4px;
@@ -18,3 +70,15 @@
   color: #721c24;
   display: block;
 }
+
+.field-hint {
+  display: block;
+  color: #555;
+  font-size: 0.85em;
+  margin-top: 0.15em;
+  margin-bottom: 0.5em;
+}
+
+.hl-project    { background-color: #fde2a7; color: #5a3a00; padding: 0 2px; border-radius: 2px; }
+.hl-experiment { background-color: #c6e7c2; color: #1f4d1a; padding: 0 2px; border-radius: 2px; }
+.hl-sample     { background-color: #c8dafc; color: #0d3a8a; padding: 0 2px; border-radius: 2px; }

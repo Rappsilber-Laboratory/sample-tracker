@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Projects — Sample Tracker{% endblock %}
+{% block title %}Projects{% endblock %}
 {% block content %}
 <h2>Projects</h2>
 <p>
@@ -15,23 +15,54 @@
     <tr>
       <th>Code</th>
       <th>Name</th>
+      <th>Description</th>
+      <th>Experiments</th>
+      <th>Samples</th>
+      <th>Files</th>
+      <th>Active</th>
       <th>Contact</th>
-      <th>Status</th>
-      <th></th>
     </tr>
   </thead>
   <tbody>
     {% for project in projects %}
     <tr>
       <td>{{ project.code }}</td>
-      <td><a href="{{ url_for('project_detail', id=project.id) }}">{{ project.name }}</a></td>
-      <td>{{ project.contact_person or '' }}</td>
-      <td>{{ 'Active' if project.active else 'Archived' }}</td>
-      <td><a href="{{ url_for('project_edit', id=project.id) }}">Edit</a></td>
+      <td><a href="{{ url_for('project_detail', code=project.code) }}">{{ project.name }}</a></td>
+      <td>{{ project.description or '' }}</td>
+      <td>{{ exp_counts[project.code] }}</td>
+      <td>{{ sample_counts[project.code] }}</td>
+      <td>{{ file_counts[project.code] or '' }}</td>
+      <td>
+        <input type="checkbox"
+               {% if project.active %}checked{% endif %}
+               data-id="{{ project.code }}"
+               data-csrf="{{ csrf_token() }}"
+               title="{{ 'Active' if project.active else 'Archived' }}"
+               onchange="toggleActive(this)">
+      </td>
+      <td>{{ users.get(project.user_initials, project.user_initials or '') }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="5">No projects found.</td></tr>
+    <tr><td colspan="8">No projects found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
+{% endblock %}
+{% block scripts %}
+<script>
+function toggleActive(cb) {
+  const id = cb.dataset.id;
+  const csrf = cb.dataset.csrf;
+  fetch(`/projects/${encodeURIComponent(id)}/toggle-active`, {
+    method: 'POST',
+    headers: { 'Accept': 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `csrf_token=${encodeURIComponent(csrf)}`
+  }).then(r => {
+    if (!r.ok) throw new Error(r.status);
+  }).catch(() => {
+    cb.checked = !cb.checked;
+    alert('Could not update project status.');
+  });
+}
+</script>
 {% endblock %}

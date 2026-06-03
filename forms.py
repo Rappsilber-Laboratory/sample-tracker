@@ -2,33 +2,36 @@ from flask_wtf import FlaskForm
 from wtforms import (
     BooleanField,
     FloatField,
+    IntegerField,
     SelectField,
     SelectMultipleField,
     StringField,
     TextAreaField,
     widgets,
 )
-from wtforms.validators import DataRequired, Optional
+from wtforms.validators import DataRequired, Optional, ValidationError
 
 
 class ProjectForm(FlaskForm):
     code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
-    description = TextAreaField("Description", validators=[Optional()])
-    contact_person = StringField("Contact Person", validators=[Optional()])
+    description = TextAreaField("Description", validators=[DataRequired()])
+    user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
     active = BooleanField("Active", default=True)
 
 
 class ExperimentForm(FlaskForm):
-    project_id = SelectField("Project", coerce=int, validators=[DataRequired()])
+    project_code = SelectField("Project", coerce=str, validators=[DataRequired()])
+    code = StringField("Code", validators=[DataRequired()])
     name = StringField("Name", validators=[DataRequired()])
-    description = TextAreaField("Description", validators=[Optional()])
-    contact_person = StringField("Contact Person", validators=[Optional()])
+    description = TextAreaField("Description", validators=[DataRequired()])
+    user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
+    active = BooleanField("Active", default=True)
 
 
 class SpeciesForm(FlaskForm):
     species_name = StringField("Species Name", validators=[DataRequired()])
-    species_taxon = StringField("Species Taxon", validators=[Optional()])
+    species_taxon = StringField("Species Taxon", validators=[DataRequired()])
 
 
 class MultiCheckboxField(SelectMultipleField):
@@ -43,17 +46,24 @@ class VirusForm(FlaskForm):
 
 
 class CellLineForm(FlaskForm):
+    cellosaurus_id = StringField("Cellosaurus ID", validators=[DataRequired()])
     cell_line_name = StringField("Cell Line Name", validators=[DataRequired()])
-    cell_line_code = StringField("Cell Line Code", validators=[Optional()])
-    species_id = SelectField("Species", coerce=int, validators=[Optional()])
+    species_id = SelectField("Species", coerce=int, validators=[DataRequired()])
     virus_ids = MultiCheckboxField("Viruses", coerce=int)
 
 
-class SampleForm(FlaskForm):
-    experiment_id = SelectField("Experiment", coerce=int, validators=[DataRequired()])
+class UserForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
-    comment = TextAreaField("Comment", validators=[Optional()])
-    file_name_root = StringField("File Name Root", validators=[Optional()])
+    initials = StringField("Initials", validators=[DataRequired()])
+    active = BooleanField("Active", default=True)
+
+
+class MassSpecSampleForm(FlaskForm):
+    experiment_code = SelectField("Experiment", coerce=str, validators=[DataRequired()])
+    code = StringField("Code", validators=[DataRequired()])
+    name = StringField("Name", validators=[DataRequired()])
+    description = TextAreaField("Description", validators=[DataRequired()])
+    user_initials = SelectField("Contact Person", coerce=str, validators=[DataRequired()])
     disease = StringField("Disease", default="N/A", validators=[Optional()])
     phenotype = StringField("Phenotype", default="N/A", validators=[Optional()])
     isotope_labeling_channel = StringField(
@@ -81,9 +91,9 @@ class SampleForm(FlaskForm):
     quantitation_scheme = StringField("Quantitation Scheme", default="N/A", validators=[Optional()])
     quantitation_method = SelectField(
         "Quantitation Method",
-        default="N/A",
+        default="",
         choices=[
-            ("N/A", "N/A"),
+            ("", "N/A"),
             ("LFQ", "LFQ"),
             ("isotope labelled MS1", "Isotope Labelled MS1"),
             ("Isobaric MS2", "Isobaric MS2"),
@@ -105,16 +115,16 @@ class SampleForm(FlaskForm):
         validators=[Optional()],
     )
     protein_or_cell_concentration = FloatField(
-        "Protein/Cell Concentration", validators=[Optional()]
+        "Protein or Cell Concentration", validators=[Optional()]
     )
     protein_or_cell_concentration_unit = StringField(
-        "Protein/Cell Concentration Unit", default="N/A", validators=[Optional()]
+        "Protein or Cell Concentration Unit", default="N/A", validators=[Optional()]
     )
     crosslinker_or_compound_concentration = FloatField(
-        "Crosslinker/Compound Concentration", validators=[Optional()]
+        "Crosslinker or Compound Concentration", validators=[Optional()]
     )
     crosslinker_or_compound_concentration_unit = StringField(
-        "Crosslinker/Compound Concentration Unit", default="N/A", validators=[Optional()]
+        "Crosslinker or Compound Concentration Unit", default="N/A", validators=[Optional()]
     )
     organic_solvent_concentration = FloatField(
         "Organic Solvent Concentration", validators=[Optional()]
@@ -123,7 +133,7 @@ class SampleForm(FlaskForm):
         "Organic Solvent Concentration Unit", default="N/A", validators=[Optional()]
     )
     reaction_temperature_in_celsius = FloatField(
-        "Reaction Temperature (\u00b0C)", validators=[Optional()]
+        "Reaction Temperature (°C)", validators=[Optional()]
     )
     reaction_time_in_minutes = FloatField(
         "Reaction Time (min)", validators=[Optional()]
@@ -142,4 +152,57 @@ class SampleForm(FlaskForm):
 
     # Many-to-many
     species_ids = MultiCheckboxField("Species", coerce=int)
-    cell_line_ids = MultiCheckboxField("Cell Lines", coerce=int)
+    cellosaurus_ids = MultiCheckboxField("Cell Lines", coerce=str)
+
+    def validate_protein_or_cell_concentration(self, field):
+        if self.crosslinked_sample.data and field.data is None:
+            raise ValidationError('Required for crosslinked samples.')
+
+    def validate_protein_or_cell_concentration_unit(self, field):
+        if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
+            raise ValidationError('Required for crosslinked samples — enter a real unit.')
+
+    def validate_crosslinker_or_compound_concentration(self, field):
+        if self.crosslinked_sample.data and field.data is None:
+            raise ValidationError('Required for crosslinked samples.')
+
+    def validate_crosslinker_or_compound_concentration_unit(self, field):
+        if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
+            raise ValidationError('Required for crosslinked samples — enter a real unit.')
+
+
+class MassSpecAcquisitionForm(FlaskForm):
+    location = StringField("Location", validators=[Optional()])
+    filename = StringField("Filename", validators=[Optional()])
+    size_bytes = FloatField("Size (GB)", validators=[Optional()])
+    instrument_initial = StringField("Instrument Initial", validators=[Optional()])
+    date = StringField("Date", validators=[Optional()])
+    user_initials = StringField("User Initials", validators=[Optional()])
+    scan_count = IntegerField("Scan Count", validators=[Optional()])
+    meta_json = TextAreaField("Meta (JSON)", validators=[Optional()])
+
+
+def _optional_int(value):
+    if value in (None, "", "None"):
+        return None
+    return int(value)
+
+
+def _optional_str(value):
+    if value in (None, "", "None"):
+        return None
+    return str(value)
+
+
+class MassSpecAcquisitionEditForm(FlaskForm):
+    # validate_choice=False: the experiment/sample option lists are populated
+    # client-side from an embedded tree, so any code present in the DB is valid.
+    project_code = SelectField(
+        "Project", coerce=_optional_str, validators=[Optional()], validate_choice=False
+    )
+    experiment_code = SelectField(
+        "Experiment", coerce=_optional_str, validators=[Optional()], validate_choice=False
+    )
+    sample_code = SelectField(
+        "Sample", coerce=_optional_str, validators=[Optional()], validate_choice=False
+    )

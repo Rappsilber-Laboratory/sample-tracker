@@ -1,18 +1,27 @@
 {% extends "base.html" %}
 {% from "_form_helpers.html" import render_field %}
-{% block title %}{{ 'Edit' if project else 'New' }} Project — Sample Tracker{% endblock %}
+{% block title %}{{ 'Edit' if project else 'New' }} Project{% endblock %}
 {% block content %}
 <h2>{{ 'Edit' if project else 'New' }} Project</h2>
+{% if project %}
+  <p><a href="{{ url_for('project_detail', code=project.code) }}">Cancel</a></p>
+{% else %}
+  <p><a href="{{ url_for('project_list') }}">Cancel</a></p>
+{% endif %}
 <form method="post">
   {{ form.hidden_tag() }}
+  {% if project %}
+  <p><strong>Code:</strong> {{ project.code }}</p>
+  {% else %}
   <p>{{ render_field(form.code) }}</p>
+  {% endif %}
   <p>{{ render_field(form.name) }}</p>
   <p>{{ render_field(form.description) }}</p>
-  <p>{{ render_field(form.contact_person) }}</p>
+  <p>{{ render_field(form.user_initials) }}</p>
   <p>{{ render_field(form.active) }}</p>
   <button type="submit">Save</button>
   {% if project %}
-    <a href="{{ url_for('project_detail', id=project.id) }}">Cancel</a>
+    <a href="{{ url_for('project_detail', code=project.code) }}">Cancel</a>
   {% else %}
     <a href="{{ url_for('project_list') }}">Cancel</a>
   {% endif %}

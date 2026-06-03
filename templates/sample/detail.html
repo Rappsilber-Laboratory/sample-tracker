@@ -1,0 +1,250 @@
+{% extends "base.html" %}
+{% from "_tables.html" import file_table %}
+{% block title %}{{ sample.code }} - {{ sample.name }}{% endblock %}
+{% block content %}
+<h2>Sample: {{ sample.name }}</h2>
+<p>
+  <a href="{{ url_for('sample_edit', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Edit</a>
+</p>
+<p><strong>Summary:</strong>
+  {{ file_count }} file{{ '' if file_count == 1 else 's' }},
+  {{ '%.2f' | format(total_size_gb) }} GB
+</p>
+
+<p><strong>Project:</strong> <a href="{{ url_for('project_detail', code=sample.experiment.project.code) }}">{{ sample.experiment.project.name }}</a></p>
+<p><strong>Experiment:</strong> <a href="{{ url_for('experiment_detail', project_code=sample.project_code, code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></p>
+{% if sample.code %}<p><strong>Code:</strong> {{ sample.code }}</p>{% endif %}
+<p><strong>Type:</strong> {% if sample.crosslinked_sample is none %}—{% elif sample.crosslinked_sample %}Crosslinked{% else %}Identification{% endif %}</p>
+{% if sample.user_initials %}<p><strong>Contact:</strong> {{ users.get(sample.user_initials, sample.user_initials) }}</p>{% endif %}
+{% if sample.description %}<p>{{ sample.description }}</p>{% endif %}
+
+<section class="new-batch"
+         data-project-code="{{ sample.experiment.project.code or '' }}"
+         data-experiment-code="{{ sample.experiment.code or '' }}"
+         data-sample-code="{{ sample.code or '' }}"
+         data-csv-url="{{ url_for('sample_batch_csv', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}"
+         data-queue-url="{{ url_for('sample_batch_queue', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">
+  <h3>New Batch</h3>
+  <p>
+    <label>Instrument Initial <input type="text" id="batch-instrument" required></label>
+    <label>Name
+      <select id="batch-user" required>
+        <option value="" disabled {{ 'selected' if not sample.user_initials }}>— select —</option>
+        {% for u in active_users %}
+        <option value="{{ u.initials }}" {{ 'selected' if u.initials == sample.user_initials }}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Number of Acquisitions <input type="number" id="batch-count" min="1" step="1" value="1" required></label>
+    <button type="button" id="batch-generate">Generate</button>
+  </p>
+  <p id="batch-message" role="status"></p>
+</section>
+
+{% if sample.species_list %}
+<details>
+  <summary>Species</summary>
+  <table>
+    <tbody>
+      <tr><td>{{ sample.species_list | map(attribute='name') | join(', ') }}</td></tr>
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{% if sample.cell_lines %}
+<details>
+  <summary>Cell Lines</summary>
+  <table>
+    <tbody>
+      <tr><td>{{ sample.cell_lines | map(attribute='name') | join(', ') }}</td></tr>
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{% set has_prep = sample.isotope_labeling_channel or sample.chemical_labelling or sample.enrichment_process or sample.replicate or sample.synthetic_peptide or sample.digestion or sample.protein_isolation_or_fractionation %}
+{% if has_prep %}
+<details>
+  <summary>Sample Preparation</summary>
+  <table>
+    <tbody>
+      {% if sample.isotope_labeling_channel %}<tr><th>Isotope Labeling Channel</th><td>{{ sample.isotope_labeling_channel }}</td></tr>{% endif %}
+      {% if sample.chemical_labelling %}<tr><th>Chemical Labelling</th><td>{{ sample.chemical_labelling }}</td></tr>{% endif %}
+      {% if sample.enrichment_process %}<tr><th>Enrichment Process</th><td>{{ sample.enrichment_process }}</td></tr>{% endif %}
+      {% if sample.replicate %}<tr><th>Replicate</th><td>{{ sample.replicate }}</td></tr>{% endif %}
+      {% if sample.synthetic_peptide %}<tr><th>Synthetic Peptide</th><td>{{ sample.synthetic_peptide }}</td></tr>{% endif %}
+      {% if sample.digestion %}<tr><th>Digestion</th><td>{{ sample.digestion }}</td></tr>{% endif %}
+      {% if sample.protein_isolation_or_fractionation %}<tr><th>Protein Isolation / Fractionation</th><td>{{ sample.protein_isolation_or_fractionation }}</td></tr>{% endif %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{% if sample.crosslinked_sample %}
+<details>
+  <summary>Crosslink Details</summary>
+  <table>
+    <tbody>
+      {% if sample.crosslinker %}<tr><th>Crosslinker</th><td>{{ sample.crosslinker }}</td></tr>{% endif %}
+      {% if sample.crosslinking_type %}<tr><th>Crosslinking Type</th><td>{{ sample.crosslinking_type }}</td></tr>{% endif %}
+      {% if sample.protein_or_cell_concentration %}<tr><th title="Concentration of proteins or cells in the reaction. For isolated protein samples: molar (e.g. mM) or weight (e.g. mg/mL). For in vivo crosslinking: cell count per volume (e.g. 1 × 10⁶ cells/mL).">Protein or Cell Concentration</th><td>{{ sample.protein_or_cell_concentration }}{% if sample.protein_or_cell_concentration_unit %} {{ sample.protein_or_cell_concentration_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.crosslinker_or_compound_concentration %}<tr><th title="Final concentration of the crosslinker or compound in the reaction mixture — not the stock solution concentration. Typically molar (e.g. mM) or weight (e.g. mg/mL).">Crosslinker or Compound Concentration</th><td>{{ sample.crosslinker_or_compound_concentration }}{% if sample.crosslinker_or_compound_concentration_unit %} {{ sample.crosslinker_or_compound_concentration_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.organic_solvent_concentration %}<tr><th title="Final concentration of organic solvent in the reaction (crosslinker stock solutions are sometimes dissolved in organic solvents). Typically molar (e.g. 5 µM) or a volume fraction such as 2% v/v.">Organic Solvent Concentration</th><td>{{ sample.organic_solvent_concentration }}{% if sample.organic_solvent_concentration_unit %} {{ sample.organic_solvent_concentration_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.reaction_temperature_in_celsius %}<tr><th>Reaction Temperature</th><td>{{ sample.reaction_temperature_in_celsius }} °C</td></tr>{% endif %}
+      {% if sample.reaction_time_in_minutes %}<tr><th>Reaction Time</th><td>{{ sample.reaction_time_in_minutes }} min</td></tr>{% endif %}
+      {% if sample.quenching_reagent %}<tr><th>Quenching Reagent</th><td>{{ sample.quenching_reagent }}</td></tr>{% endif %}
+      {% if sample.uv_source %}<tr><th>UV Source</th><td>{{ sample.uv_source }}</td></tr>{% endif %}
+      {% if sample.uv_time_in_seconds %}<tr><th>UV Time</th><td>{{ sample.uv_time_in_seconds }} s</td></tr>{% endif %}
+      {% if sample.uv_wavelength_in_nanometers %}<tr><th>UV Wavelength</th><td>{{ sample.uv_wavelength_in_nanometers }} nm</td></tr>{% endif %}
+    </tbody>
+  </table>
+</details>
+{% else %}
+{% if sample.peptide_level_fraction %}
+<details>
+  <summary>Identification Details</summary>
+  <table>
+    <tbody>
+      <tr><th>Peptide Level Fraction</th><td>{{ sample.peptide_level_fraction }}</td></tr>
+    </tbody>
+  </table>
+</details>
+{% endif %}
+{% endif %}
+
+{% if sample.quantitation %}
+<details>
+  <summary>Quantitation</summary>
+  <table>
+    <tbody>
+      {% if sample.quantitation_scheme %}<tr><th>Scheme</th><td>{{ sample.quantitation_scheme }}</td></tr>{% endif %}
+      {% if sample.quantitation_method %}<tr><th>Method</th><td>{{ sample.quantitation_method }}</td></tr>{% endif %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+{% set has_organism = sample.disease or sample.phenotype or sample.tissue or sample.organism_age or sample.organism_sex %}
+{% if has_organism %}
+<details>
+  <summary>Organism</summary>
+  <table>
+    <tbody>
+      {% if sample.disease %}<tr><th>Disease</th><td>{{ sample.disease }}</td></tr>{% endif %}
+      {% if sample.phenotype %}<tr><th>Phenotype</th><td>{{ sample.phenotype }}</td></tr>{% endif %}
+      {% if sample.tissue %}<tr><th>Tissue</th><td>{{ sample.tissue }}</td></tr>{% endif %}
+      {% if sample.organism_age %}<tr><th>Age</th><td>{{ sample.organism_age }}{% if sample.organism_age_unit %} {{ sample.organism_age_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.organism_sex %}<tr><th>Sex</th><td>{{ sample.organism_sex }}</td></tr>{% endif %}
+    </tbody>
+  </table>
+</details>
+{% endif %}
+
+<details id="files-section">
+  <summary>Files</summary>
+  {{ file_table(sample.files, users) }}
+</details>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  (function () {
+    const section = document.querySelector('.new-batch');
+    const button = document.getElementById('batch-generate');
+    const message = document.getElementById('batch-message');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+    // After a successful queue + reload, open the Files section so the new rows show.
+    document.addEventListener('DOMContentLoaded', function () {
+      if (sessionStorage.getItem('batchOpenFiles')) {
+        sessionStorage.removeItem('batchOpenFiles');
+        const files = document.getElementById('files-section');
+        if (files) {
+          files.open = true;
+          files.scrollIntoView();
+        }
+      }
+    });
+
+    function filenameFromDisposition(header, fallback) {
+      const match = header && /filename="?([^"]+)"?/.exec(header);
+      return match ? match[1] : fallback;
+    }
+
+    function post(url, payload) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    button.addEventListener('click', async function () {
+      const inst = document.getElementById('batch-instrument').value.trim();
+      const user = document.getElementById('batch-user').value;
+      const count = parseInt(document.getElementById('batch-count').value, 10);
+      const proj = section.dataset.projectCode;
+      const exp = section.dataset.experimentCode;
+      const samp = section.dataset.sampleCode;
+
+      if (!inst || !user || !Number.isInteger(count) || count < 1) {
+        message.textContent = 'Please fill in all fields (acquisitions must be a whole number ≥ 1).';
+        return;
+      }
+
+      const now = new Date();
+      const date = now.getFullYear().toString()
+        + String(now.getMonth() + 1).padStart(2, '0')
+        + String(now.getDate()).padStart(2, '0');
+
+      const names = [];
+      for (let i = 1; i <= count; i++) {
+        const n = String(i).padStart(2, '0');
+        names.push(`${inst}_${date}_${proj}_${user}_${exp}_${samp}_${n}`);
+      }
+
+      const payload = { names: names, instrument_initial: inst, user_initials: user, date: date };
+
+      message.textContent = 'Generating sequence file…';
+      button.disabled = true;
+      try {
+        // 1. Download the Xcalibur CSV (no DB write).
+        const csvResp = await post(section.dataset.csvUrl, payload);
+        if (!csvResp.ok) {
+          message.textContent = 'Could not generate the CSV (server error).';
+          return;
+        }
+        const blob = await csvResp.blob();
+        const filename = filenameFromDisposition(
+          csvResp.headers.get('Content-Disposition'), `${proj}_${exp}_${samp}_queue.csv`);
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objectUrl);
+
+        // 2. Ask whether to persist the queued files.
+        if (!confirm(`Add ${names.length} queued file${names.length === 1 ? '' : 's'} to the database?`)) {
+          message.textContent = 'CSV downloaded. No files were added to the database.';
+          return;
+        }
+
+        // 3. Persist the QUEUED file records, then reload to show them.
+        const queueResp = await post(section.dataset.queueUrl, payload);
+        if (!queueResp.ok) {
+          message.textContent = 'CSV downloaded, but adding files to the database failed.';
+          return;
+        }
+        sessionStorage.setItem('batchOpenFiles', '1');
+        location.reload();
+      } finally {
+        button.disabled = false;
+      }
+    });
+  })();
+</script>
+{% endblock %}

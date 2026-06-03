@@ -1,4 +1,4 @@
-# Sample Tracker
+# Mass Spec Acquisition Tracker
 
 Simple setup and run instructions.
 

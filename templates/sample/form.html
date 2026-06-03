@@ -1,112 +1,181 @@
 {% extends "base.html" %}
 {% from "_form_helpers.html" import render_field %}
-{% block title %}{{ 'Edit' if sample else 'New' }} Sample — Sample Tracker{% endblock %}
+{% from "_tables.html" import file_table %}
+{% block title %}{{ 'Edit' if sample else 'New' }} Sample{% endblock %}
 {% block content %}
 <h2>{{ 'Edit' if sample else 'New' }} Sample</h2>
+{% if sample %}
+  <p><a href="{{ url_for('sample_detail', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Cancel</a></p>
+{% else %}
+  <p><a href="{{ url_for('sample_list') }}">Cancel</a></p>
+{% endif %}
+{% if not sample and copy_samples %}
+<fieldset>
+  <legend>Copy from existing sample</legend>
+  <p>
+    <label for="copy_from">Existing sample</label>
+    <select id="copy_from" name="copy_from_select" onchange="if (this.value) { window.location = '{{ url_for('sample_create') }}?copy_from=' + encodeURIComponent(this.value); }">
+      <option value="">— none —</option>
+      {% for token, label in copy_samples %}
+      <option value="{{ token }}" {% if token == copy_from %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </p>
+  <small class="field-hint">Pre-fills the form below with the chosen sample's values (except Code and Name). Edit anything you like before saving.</small>
+</fieldset>
+{% endif %}
+
 <form method="post">
   {{ form.hidden_tag() }}
 
   <fieldset>
     <legend>Basic Info</legend>
-    <p>{{ render_field(form.experiment_id) }}</p>
+    {% if sample %}
+    <p><strong>Experiment:</strong> {{ sample.experiment.project_code }} / {{ sample.experiment_code }}</p>
+    <p><strong>Code:</strong> {{ sample.code }}</p>
+    {% else %}
+    <p>{{ render_field(form.experiment_code) }}</p>
+    <p>{{ render_field(form.code) }}</p>
+    {% endif %}
     <p>{{ render_field(form.name) }}</p>
-    <p>{{ render_field(form.comment) }}</p>
-    <p>
-      {{ render_field(form.file_name_root) }}
-      <small class="field-hint">File Name Root Formatting: InstrumentInitial_Date_ProjectCode_UserInitials_BatchName</small>
-      {% if sample %}
-        <a href="{{ url_for('sample_files', id=sample.id) }}">View Files</a>
-      {% endif %}
-    </p>
-  </fieldset>
-
-  <fieldset>
-    <legend>Organism</legend>
-    <p>{{ render_field(form.disease) }}</p>
-    <p>{{ render_field(form.phenotype) }}</p>
-    <p>{{ render_field(form.tissue) }}</p>
-    <p>{{ render_field(form.organism_age) }}</p>
-    <p>{{ render_field(form.organism_age_unit) }}</p>
-    <p>{{ render_field(form.organism_sex) }}</p>
-  </fieldset>
-
-  <fieldset>
-    <legend>Sample Preparation</legend>
-    <p>{{ render_field(form.isotope_labeling_channel) }}</p>
-    <p>{{ render_field(form.chemical_labelling) }}</p>
-    <p>{{ render_field(form.enrichment_process) }}</p>
-    <p>{{ render_field(form.replicate) }}</p>
-    <p>{{ render_field(form.synthetic_peptide) }}</p>
-    <p>{{ render_field(form.digestion) }}</p>
-    <p>{{ render_field(form.protein_isolation_or_fractionation) }}</p>
-  </fieldset>
-
-  <fieldset>
-    <legend>Quantitation</legend>
-    <p>{{ render_field(form.quantitation) }}</p>
-    <p>{{ render_field(form.quantitation_scheme) }}</p>
-    <p>{{ render_field(form.quantitation_method) }}</p>
-  </fieldset>
-
-  <fieldset>
-    <legend>Sample Type</legend>
+    <p>{{ render_field(form.description) }}</p>
+    <p>{{ render_field(form.user_initials) }}</p>
     <p>{{ render_field(form.crosslinked_sample) }}</p>
   </fieldset>
 
-  <fieldset id="crosslink-fields">
-    <legend>Crosslink Details</legend>
-    <p>{{ render_field(form.crosslinker) }}</p>
-    <p>{{ render_field(form.crosslinking_type) }}</p>
-    <p>{{ render_field(form.protein_or_cell_concentration) }}</p>
-    <p>{{ render_field(form.protein_or_cell_concentration_unit) }}</p>
-    <p>{{ render_field(form.crosslinker_or_compound_concentration) }}</p>
-    <p>{{ render_field(form.crosslinker_or_compound_concentration_unit) }}</p>
-    <p>{{ render_field(form.organic_solvent_concentration) }}</p>
-    <p>{{ render_field(form.organic_solvent_concentration_unit) }}</p>
-    <p>{{ render_field(form.reaction_temperature_in_celsius) }}</p>
-    <p>{{ render_field(form.reaction_time_in_minutes) }}</p>
-    <p>{{ render_field(form.quenching_reagent) }}</p>
-    <p>{{ render_field(form.uv_source) }}</p>
-    <p>{{ render_field(form.uv_time_in_seconds) }}</p>
-    <p>{{ render_field(form.uv_wavelength_in_nanometers) }}</p>
-  </fieldset>
+  <details>
+    <summary>Species</summary>
+    <fieldset>
+      {{ form.species_ids() }}
+    </fieldset>
+  </details>
 
-  <fieldset id="identification-fields">
-    <legend>Identification Details</legend>
-    <p>{{ render_field(form.peptide_level_fraction) }}</p>
-  </fieldset>
+  <details>
+    <summary>Cell Lines</summary>
+    <fieldset>
+      {{ form.cellosaurus_ids() }}
+    </fieldset>
+  </details>
 
-  <fieldset>
-    <legend>Species</legend>
-    {{ form.species_ids() }}
-  </fieldset>
+  <details>
+    <summary>Sample Preparation</summary>
+    <fieldset>
+      <p>{{ render_field(form.isotope_labeling_channel) }}</p>
+      <p>{{ render_field(form.chemical_labelling) }}</p>
+      <p>{{ render_field(form.enrichment_process) }}</p>
+      <p>{{ render_field(form.replicate) }}</p>
+      <p>{{ render_field(form.synthetic_peptide) }}</p>
+      <p>{{ render_field(form.digestion) }}</p>
+      <p>{{ render_field(form.protein_isolation_or_fractionation) }}</p>
+    </fieldset>
+  </details>
 
-  <fieldset>
-    <legend>Cell Lines</legend>
-    {{ form.cell_line_ids() }}
-  </fieldset>
+  <details id="crosslink-fields">
+    <summary>Crosslink Details</summary>
+    <fieldset>
+      <p>{{ render_field(form.crosslinker) }}</p>
+      <p>{{ render_field(form.crosslinking_type) }}</p>
+
+      <p class="field-hint">This set of questions concerns the experimental conditions of crosslinking reactions. Such reactions occur in solution and are carried out by mixing protein samples with crosslinkers. To document the reaction conditions, it is important to record the following information:</p>
+
+      <small class="field-hint">Protein or Cell Concentration (number)<br>Protein or Cell Concentration Unit (unit)</small>
+      <p>{{ render_field(form.protein_or_cell_concentration) }}</p>
+      <p>{{ render_field(form.protein_or_cell_concentration_unit) }}</p>
+      <small class="field-hint">These two fields define the concentration of proteins or cells in a crosslinking reaction and should be entered as a numerical value and a corresponding unit. For isolated protein samples, the concentration is typically measured as either a molar concentration (e.g., mM) or a weight concentration (e.g., mg/mL). For in vivo crosslinking experiments, the concentration may instead be recorded as cell count per volume (e.g., 1 × 10⁶ cells/mL).</small>
+
+      <small class="field-hint">Crosslinker or Compound Concentration<br>Crosslinker or Compound Concentration Unit</small>
+      <p>{{ render_field(form.crosslinker_or_compound_concentration) }}</p>
+      <p>{{ render_field(form.crosslinker_or_compound_concentration_unit) }}</p>
+      <small class="field-hint">These two fields define the concentration of the crosslinker or another chemical compound in the crosslinking reaction. Note that the concentration recorded here should be the final concentration in the reaction mixture, not the concentration of the stock solution. The value should be entered as a numerical value together with a unit. Concentrations are typically measured as molar concentrations (e.g., mM) or weight concentrations (e.g., mg/mL).</small>
+
+      <small class="field-hint">Organic Solvent Concentration<br>Organic Solvent Concentration Unit</small>
+      <p>{{ render_field(form.organic_solvent_concentration) }}</p>
+      <p>{{ render_field(form.organic_solvent_concentration_unit) }}</p>
+      <small class="field-hint">Crosslinker stock solutions are sometimes prepared in organic solvents before being added to the crosslinking reaction. The final concentration of the organic solvent in the reaction should therefore also be recorded, as it may affect protein structure and may be important for interpreting the crosslinking data. This value can be entered as a numerical value together with a unit. In some cases, the concentration may be expressed as a molar concentration (e.g., 5 µM). More commonly, however, it is reported as a fraction of the total reaction volume (v/v), such as 2%. In the latter case, the unit field should be left empty.</small>
+      <p>{{ render_field(form.reaction_temperature_in_celsius) }}</p>
+      <p>{{ render_field(form.reaction_time_in_minutes) }}</p>
+      <p>{{ render_field(form.quenching_reagent) }}</p>
+      <p>{{ render_field(form.uv_source) }}</p>
+      <p>{{ render_field(form.uv_time_in_seconds) }}</p>
+      <p>{{ render_field(form.uv_wavelength_in_nanometers) }}</p>
+    </fieldset>
+  </details>
+
+  <div id="identification-fields">
+    <fieldset>
+      <p>{{ render_field(form.peptide_level_fraction) }}</p>
+    </fieldset>
+  </div>
+
+  <details>
+    <summary>Quantitation</summary>
+    <fieldset>
+      <p>{{ render_field(form.quantitation) }}</p>
+      <p>{{ render_field(form.quantitation_scheme) }}</p>
+      <p>{{ render_field(form.quantitation_method) }}</p>
+    </fieldset>
+  </details>
+
+  <details>
+    <summary>Organism</summary>
+    <fieldset>
+      <p>{{ render_field(form.disease) }}</p>
+      <p>{{ render_field(form.phenotype) }}</p>
+      <p>{{ render_field(form.tissue) }}</p>
+      <p>{{ render_field(form.organism_age) }}</p>
+      <p>{{ render_field(form.organism_age_unit) }}</p>
+      <p>{{ render_field(form.organism_sex) }}</p>
+    </fieldset>
+  </details>
 
   <button type="submit">Save</button>
   {% if sample %}
-    <a href="{{ url_for('experiment_detail', id=sample.experiment_id) }}">Cancel</a>
+    <a href="{{ url_for('sample_detail', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Cancel</a>
   {% else %}
     <a href="{{ url_for('sample_list') }}">Cancel</a>
   {% endif %}
 </form>
+
+{% if sample %}
+<hr>
+<h3>Files</h3>
+{{ file_table(sample.files) }}
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
 <script>
+  const requiredForCrosslink = [
+    'crosslinker',
+    'crosslinking_type',
+    'protein_or_cell_concentration',
+    'protein_or_cell_concentration_unit',
+    'crosslinker_or_compound_concentration',
+    'crosslinker_or_compound_concentration_unit',
+    'reaction_temperature_in_celsius',
+    'reaction_time_in_minutes',
+    'quenching_reagent',
+  ];
+
   function toggleSampleFields() {
     const cb = document.getElementById('crosslinked_sample');
     const crosslinkFields = document.getElementById('crosslink-fields');
     const identificationFields = document.getElementById('identification-fields');
     if (cb.checked) {
       crosslinkFields.style.display = '';
+      crosslinkFields.open = true;
       identificationFields.style.display = 'none';
+      requiredForCrosslink.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.required = true;
+      });
     } else {
       crosslinkFields.style.display = 'none';
       identificationFields.style.display = '';
+      requiredForCrosslink.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.required = false;
+      });
     }
   }
   document.getElementById('crosslinked_sample').addEventListener('change', toggleSampleFields);

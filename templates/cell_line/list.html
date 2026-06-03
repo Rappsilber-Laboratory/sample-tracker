@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Cell Lines — Sample Tracker{% endblock %}
+{% block title %}Cell Lines{% endblock %}
 {% block content %}
 <h2>Cell Lines</h2>
 <p><a href="{{ url_for('cell_line_create') }}" role="button">New Cell Line</a></p>
@@ -7,20 +7,20 @@
   <thead>
     <tr>
       <th>Name</th>
-      <th>Code</th>
+      <th>Cellosaurus ID</th>
       <th>Species</th>
-      <th>Viruses</th>
-      <th></th>
+{#      <th>Viruses</th>#}
+{#      <th></th>#}
     </tr>
   </thead>
   <tbody>
     {% for cl in cell_lines %}
     <tr>
-      <td>{{ cl.cell_line_name }}</td>
-      <td>{{ cl.cell_line_code or '' }}</td>
+      <td><a href="{{ url_for('cell_line_detail', cellosaurus_id=cl.cellosaurus_id) }}">{{ cl.cell_line_name }}</a></td>
+      <td><a href="https://www.cellosaurus.org/{{ cl.cellosaurus_id }}" target="_blank" rel="noopener">{{ cl.cellosaurus_id }}</a></td>
       <td>{{ cl.species.species_name if cl.species else '' }}</td>
-      <td>{{ cl.viruses | map(attribute='name') | join(', ') }}</td>
-      <td><a href="{{ url_for('cell_line_edit', id=cl.id) }}">Edit</a></td>
+{#      <td>{{ cl.viruses | map(attribute='name') | join(', ') }}</td>#}
+{#      <td><a href="{{ url_for('cell_line_edit', cellosaurus_id=cl.cellosaurus_id) }}">Edit</a></td>#}
     </tr>
     {% else %}
     <tr><td colspan="5">No cell lines found.</td></tr>

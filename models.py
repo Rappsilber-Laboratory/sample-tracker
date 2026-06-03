@@ -5,21 +5,31 @@ db = SQLAlchemy()
 # Junction tables
 cell_line_virus = db.Table(
     "cell_line_virus",
-    db.Column("cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True),
+    db.Column("cellosaurus_id", db.Text, db.ForeignKey("cell_line.cellosaurus_id"), primary_key=True),
     db.Column("virus_id", db.Integer, db.ForeignKey("virus.id"), primary_key=True),
 )
 
 sample_species = db.Table(
     "sample_species",
-    db.Column("sample_id", db.Integer, db.ForeignKey("sample.id"), primary_key=True),
+    db.Column("project_code", db.Text, primary_key=True),
+    db.Column("experiment_code", db.Text, primary_key=True),
+    db.Column("sample_code", db.Text, primary_key=True),
     db.Column("species_id", db.Integer, db.ForeignKey("species.id"), primary_key=True),
+    db.ForeignKeyConstraint(
+        ["project_code", "experiment_code", "sample_code"],
+        ["mass_spec_sample.project_code", "mass_spec_sample.experiment_code", "mass_spec_sample.code"],
+    ),
 )
 
 sample_cell_line = db.Table(
     "sample_cell_line",
-    db.Column("sample_id", db.Integer, db.ForeignKey("sample.id"), primary_key=True),
-    db.Column(
-        "cell_line_id", db.Integer, db.ForeignKey("cell_line.id"), primary_key=True
+    db.Column("project_code", db.Text, primary_key=True),
+    db.Column("experiment_code", db.Text, primary_key=True),
+    db.Column("sample_code", db.Text, primary_key=True),
+    db.Column("cellosaurus_id", db.Text, db.ForeignKey("cell_line.cellosaurus_id"), primary_key=True),
+    db.ForeignKeyConstraint(
+        ["project_code", "experiment_code", "sample_code"],
+        ["mass_spec_sample.project_code", "mass_spec_sample.experiment_code", "mass_spec_sample.code"],
     ),
 )
 
@@ -27,11 +37,10 @@ sample_cell_line = db.Table(
 class Project(db.Model):
     __tablename__ = "project"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    code = db.Column(db.Text, nullable=False)
+    code = db.Column(db.Text, primary_key=True, nullable=False)
     name = db.Column(db.Text, nullable=False)
-    description = db.Column(db.Text)
-    contact_person = db.Column(db.Text)
+    description = db.Column(db.Text, nullable=False)
+    user_initials = db.Column(db.Text, nullable=False)
     active = db.Column(db.Boolean, nullable=False, default=True)
 
     experiments = db.relationship("Experiment", back_populates="project")
@@ -40,14 +49,15 @@ class Project(db.Model):
 class Experiment(db.Model):
     __tablename__ = "experiment"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    project_id = db.Column(db.Integer, db.ForeignKey("project.id"), nullable=False)
+    project_code = db.Column(db.Text, db.ForeignKey("project.code"), primary_key=True, nullable=False)
+    code = db.Column(db.Text, primary_key=True, nullable=False)
     name = db.Column(db.Text, nullable=False)
-    description = db.Column(db.Text)
-    contact_person = db.Column(db.Text)
+    description = db.Column(db.Text, nullable=False)
+    user_initials = db.Column(db.Text, nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=True)
 
     project = db.relationship("Project", back_populates="experiments")
-    samples = db.relationship("Sample", back_populates="experiment")
+    samples = db.relationship("MassSpecSample", back_populates="experiment")
 
 
 class Species(db.Model):
@@ -55,7 +65,7 @@ class Species(db.Model):
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     species_name = db.Column(db.Text, nullable=False)
-    species_taxon = db.Column(db.Text)
+    species_taxon = db.Column(db.Text, nullable=False)
 
     cell_lines = db.relationship("CellLine", back_populates="species")
 
@@ -74,25 +84,23 @@ class Virus(db.Model):
 class CellLine(db.Model):
     __tablename__ = "cell_line"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    cellosaurus_id = db.Column(db.Text, primary_key=True, nullable=False)
     cell_line_name = db.Column(db.Text, nullable=False)
-    cell_line_code = db.Column(db.Text)
-    species_id = db.Column(db.Integer, db.ForeignKey("species.id"))
+    species_id = db.Column(db.Integer, db.ForeignKey("species.id"), nullable=False)
 
     species = db.relationship("Species", back_populates="cell_lines")
     viruses = db.relationship("Virus", secondary=cell_line_virus, backref="cell_lines")
 
 
-class Sample(db.Model):
-    __tablename__ = "sample"
+class MassSpecSample(db.Model):
+    __tablename__ = "mass_spec_sample"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
-    experiment_id = db.Column(
-        db.Integer, db.ForeignKey("experiment.id"), nullable=False
-    )
+    project_code = db.Column(db.Text, primary_key=True, nullable=False)
+    experiment_code = db.Column(db.Text, primary_key=True, nullable=False)
+    code = db.Column(db.Text, primary_key=True, nullable=False)
     name = db.Column(db.Text, nullable=False)
-    comment = db.Column(db.Text)
-    file_name_root = db.Column(db.Text)
+    description = db.Column(db.Text, nullable=False)
+    user_initials = db.Column(db.Text, nullable=False)
     disease = db.Column(db.Text)
     phenotype = db.Column(db.Text)
     isotope_labeling_channel = db.Column(db.Text)
@@ -130,6 +138,13 @@ class Sample(db.Model):
     # IdentificationSample columns (crosslinked_sample = 0)
     peptide_level_fraction = db.Column(db.Text)
 
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ["project_code", "experiment_code"],
+            ["experiment.project_code", "experiment.code"],
+        ),
+    )
+
     # Polymorphic identity
     __mapper_args__ = {
         "polymorphic_on": crosslinked_sample,
@@ -145,9 +160,46 @@ class Sample(db.Model):
     )
 
 
-class CrosslinkSample(Sample):
+class CrosslinkSample(MassSpecSample):
     __mapper_args__ = {"polymorphic_identity": 1}
 
 
-class IdentificationSample(Sample):
+class IdentificationSample(MassSpecSample):
     __mapper_args__ = {"polymorphic_identity": 0}
+
+
+class User(db.Model):
+    __tablename__ = "user"
+
+    initials = db.Column(db.Text, primary_key=True)
+    name = db.Column(db.Text, nullable=False)
+    active = db.Column(db.Boolean, nullable=False, default=True)
+
+
+class MassSpecAcquisition(db.Model):
+    __tablename__ = "mass_spec_acquisition"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    project_code = db.Column(db.Text, nullable=True)
+    experiment_code = db.Column(db.Text, nullable=True)
+    sample_code = db.Column(db.Text, nullable=True)
+    location = db.Column(db.Text)
+    filename = db.Column(db.Text)
+    size_bytes = db.Column(db.Integer)
+    instrument_initial = db.Column(db.Text)
+    date = db.Column(db.Date)
+    user_initials = db.Column(db.Text)
+    scan_count = db.Column(db.Integer)
+    meta = db.Column(db.Text)
+
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ["project_code", "experiment_code", "sample_code"],
+            ["mass_spec_sample.project_code", "mass_spec_sample.experiment_code", "mass_spec_sample.code"],
+        ),
+    )
+
+    sample = db.relationship(
+        "MassSpecSample",
+        backref=db.backref("files", order_by="desc(MassSpecAcquisition.date), MassSpecAcquisition.filename"),
+    )
