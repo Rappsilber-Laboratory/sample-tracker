@@ -9,6 +9,22 @@
 {% else %}
   <p><a href="{{ url_for('sample_list') }}">Cancel</a></p>
 {% endif %}
+{% if not sample and copy_samples %}
+<fieldset>
+  <legend>Copy from existing sample</legend>
+  <p>
+    <label for="copy_from">Existing sample</label>
+    <select id="copy_from" name="copy_from_select" onchange="if (this.value) { window.location = '{{ url_for('sample_create') }}?copy_from=' + encodeURIComponent(this.value); }">
+      <option value="">— none —</option>
+      {% for token, label in copy_samples %}
+      <option value="{{ token }}" {% if token == copy_from %}selected{% endif %}>{{ label }}</option>
+      {% endfor %}
+    </select>
+  </p>
+  <small class="field-hint">Pre-fills the form below with the chosen sample's values (except Code and Name). Edit anything you like before saving.</small>
+</fieldset>
+{% endif %}
+
 <form method="post">
   {{ form.hidden_tag() }}
 

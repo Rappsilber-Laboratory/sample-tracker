@@ -93,6 +93,7 @@
     <tr>
       <th>Date</th>
       <th>File</th>
+      <th>Location</th>
       <th>Project</th>
       <th>Experiment</th>
       <th>Sample</th>
@@ -107,6 +108,7 @@
     <tr>
       <td>{{ f.date or '' }}</td>
       <td><a href="{{ url_for('file_detail', id=f.id) }}">{% if f.sample %}{{ highlight_codes(f.filename or f.id|string, f.sample.experiment.project.code, f.sample.experiment.code, f.sample.code) }}{% else %}{{ f.filename or f.id }}{% endif %}</a></td>
+      <td>{{ f.location or '' }}</td>
       <td>{% if f.sample %}<a href="{{ url_for('project_detail', code=f.sample.experiment.project_code) }}">{{ f.sample.experiment.project.name }}</a>{% else %}—{% endif %}</td>
       <td>{% if f.sample %}<a href="{{ url_for('experiment_detail', project_code=f.sample.project_code, code=f.sample.experiment_code) }}">{{ f.sample.experiment.name }}</a>{% else %}—{% endif %}</td>
       <td>{% if f.sample %}<a href="{{ url_for('sample_detail', project_code=f.sample.project_code, experiment_code=f.sample.experiment_code, code=f.sample.code) }}">{{ f.sample.name }}</a>{% else %}—{% endif %}</td>
@@ -116,7 +118,7 @@
       {# <td><a href="{{ url_for('file_edit', id=f.id) }}">Edit</a></td> #}
     </tr>
     {% else %}
-    <tr><td colspan="9">No file records found.</td></tr>
+    <tr><td colspan="10">No file records found.</td></tr>
     {% endfor %}
   </tbody>
 </table>

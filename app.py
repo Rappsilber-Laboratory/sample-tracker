@@ -68,6 +68,20 @@ def _sample_token(project_code, experiment_code, code):
     return TOKEN_SEP.join([project_code, experiment_code, code])
 
 
+def _next_experiment_code(project_code):
+    """Suggested code for a new experiment: 'E' + zero-padded (count + 1)."""
+    n = Experiment.query.filter_by(project_code=project_code).count() + 1
+    return f"E{n:02d}"
+
+
+def _next_sample_code(project_code, experiment_code):
+    """Suggested code for a new sample: 'S' + zero-padded (count + 1)."""
+    n = MassSpecSample.query.filter_by(
+        project_code=project_code, experiment_code=experiment_code
+    ).count() + 1
+    return f"S{n:02d}"
+
+
 def _split_token(token):
     """Split a \x1f-joined token into its parts, or () for an empty value."""
     return tuple(token.split(TOKEN_SEP)) if token else ()
@@ -361,11 +375,18 @@ def experiment_create():
     form = ExperimentForm()
     form.project_code.choices = _active_project_choices()
     form.user_initials.choices = _user_initials_choices()
-    if request.method == "GET" and request.args.get("project_code"):
-        form.project_code.data = request.args["project_code"]
-        project = db.session.get(Project, request.args["project_code"])
-        if project and project.user_initials:
-            form.user_initials.data = project.user_initials
+    if request.method == "GET":
+        if request.args.get("project_code"):
+            form.project_code.data = request.args["project_code"]
+            project = db.session.get(Project, request.args["project_code"])
+            if project and project.user_initials:
+                form.user_initials.data = project.user_initials
+        # Default code from the count of experiments in the selected project.
+        selected_project = form.project_code.data or (
+            form.project_code.choices[0][0] if form.project_code.choices else None
+        )
+        if selected_project:
+            form.code.data = _next_experiment_code(selected_project)
     if form.validate_on_submit():
         experiment = Experiment()
         form.populate_obj(experiment)
@@ -597,6 +618,23 @@ def _experiment_choices():
     return [(_exp_token(e.project_code, e.code), f"{e.project.code} — {e.name}") for e in experiments]
 
 
+def _sample_copy_choices():
+    """Options for the 'copy from existing sample' dropdown on the new-sample form."""
+    samples = (
+        MassSpecSample.query.join(Experiment).join(Project)
+        .filter(Project.active == True)  # noqa: E712
+        .order_by(Project.code, Experiment.code, MassSpecSample.code)
+        .all()
+    )
+    return [
+        (
+            _sample_token(s.project_code, s.experiment_code, s.code),
+            f"{s.project_code} / {s.experiment_code} / {s.code} — {s.name}",
+        )
+        for s in samples
+    ]
+
+
 def _species_multi_choices():
     return [(s.id, s.species_name) for s in Species.query.order_by(Species.species_name).all()]
 
@@ -653,18 +691,51 @@ def sample_list():
 
 @app.route("/samples/new", methods=["GET", "POST"])
 def sample_create():
-    form = MassSpecSampleForm()
+    # Optionally pre-fill the form from an existing sample (everything except
+    # the identity fields code/name). Only relevant on GET — on POST the values
+    # come from the submitted form.
+    copy_source = None
+    copy_from = request.values.get("copy_from")
+    if copy_from:
+        parts = _split_token(copy_from)
+        if len(parts) == 3:
+            copy_source = db.session.get(MassSpecSample, tuple(parts))
+
+    if request.method == "GET" and copy_source:
+        form = MassSpecSampleForm(obj=copy_source)
+        # Identity fields must stay unique — don't copy them.
+        form.code.data = ""
+        form.name.data = ""
+        form.crosslinked_sample.data = bool(copy_source.crosslinked_sample)
+        form.quantitation.data = bool(copy_source.quantitation)
+        form.experiment_code.data = _exp_token(copy_source.project_code, copy_source.experiment_code)
+        form.species_ids.data = [s.id for s in copy_source.species_list]
+        form.cellosaurus_ids.data = [cl.cellosaurus_id for cl in copy_source.cell_lines]
+    else:
+        form = MassSpecSampleForm()
+
     form.experiment_code.choices = _experiment_choices()
     form.user_initials.choices = _user_initials_choices()
     form.species_ids.choices = _species_multi_choices()
     form.cellosaurus_ids.choices = _cell_line_multi_choices()
-    if request.method == "GET" and request.args.get("project_code") and request.args.get("experiment_code"):
+    if (
+        request.method == "GET" and not copy_source
+        and request.args.get("project_code") and request.args.get("experiment_code")
+    ):
         project_code = request.args["project_code"]
         experiment_code = request.args["experiment_code"]
         form.experiment_code.data = _exp_token(project_code, experiment_code)
         experiment = db.session.get(Experiment, (project_code, experiment_code))
         if experiment and experiment.user_initials:
             form.user_initials.data = experiment.user_initials
+    if request.method == "GET":
+        # Default code from the count of samples in the selected experiment.
+        selected_exp = form.experiment_code.data or (
+            form.experiment_code.choices[0][0] if form.experiment_code.choices else None
+        )
+        parts = _split_token(selected_exp) if selected_exp else ()
+        if len(parts) == 2:
+            form.code.data = _next_sample_code(parts[0], parts[1])
     if form.validate_on_submit():
         is_crosslinked = form.crosslinked_sample.data
         if is_crosslinked:
@@ -688,7 +759,10 @@ def sample_create():
         db.session.commit()
         flash("Sample created.", "success")
         return redirect(url_for("experiment_detail", project_code=sample.project_code, code=sample.experiment_code))
-    return render_template("sample/form.html", form=form, sample=None)
+    return render_template(
+        "sample/form.html", form=form, sample=None,
+        copy_samples=_sample_copy_choices(), copy_from=copy_from,
+    )
 
 
 @app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>")
