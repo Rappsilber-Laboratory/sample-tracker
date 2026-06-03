@@ -21,15 +21,24 @@
 <section class="new-batch"
          data-project-code="{{ sample.experiment.project.code or '' }}"
          data-experiment-code="{{ sample.experiment.code or '' }}"
-         data-sample-code="{{ sample.code or '' }}">
+         data-sample-code="{{ sample.code or '' }}"
+         data-csv-url="{{ url_for('sample_batch_csv', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}"
+         data-queue-url="{{ url_for('sample_batch_queue', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">
   <h3>New Batch</h3>
   <p>
-    <label>Instrument Initial <input type="text" id="batch-instrument"></label>
-    <label>User Initials <input type="text" id="batch-user" value="{{ sample.user_initials or '' }}"></label>
-    <label>Number of Acquisitions <input type="number" id="batch-count" min="1" value="1"></label>
+    <label>Instrument Initial <input type="text" id="batch-instrument" required></label>
+    <label>Name
+      <select id="batch-user" required>
+        <option value="" disabled {{ 'selected' if not sample.user_initials }}>— select —</option>
+        {% for u in active_users %}
+        <option value="{{ u.initials }}" {{ 'selected' if u.initials == sample.user_initials }}>{{ u.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Number of Acquisitions <input type="number" id="batch-count" min="1" step="1" value="1" required></label>
     <button type="button" id="batch-generate">Generate</button>
   </p>
-  <pre id="batch-output"></pre>
+  <p id="batch-message" role="status"></p>
 </section>
 
 {% if sample.species_list %}
@@ -132,7 +141,7 @@
 </details>
 {% endif %}
 
-<details>
+<details id="files-section">
   <summary>Files</summary>
   {{ file_table(sample.files, users) }}
 </details>
@@ -143,18 +152,44 @@
   (function () {
     const section = document.querySelector('.new-batch');
     const button = document.getElementById('batch-generate');
-    const output = document.getElementById('batch-output');
+    const message = document.getElementById('batch-message');
+    const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
-    button.addEventListener('click', function () {
-      const inst = document.getElementById('batch-instrument').value;
+    // After a successful queue + reload, open the Files section so the new rows show.
+    document.addEventListener('DOMContentLoaded', function () {
+      if (sessionStorage.getItem('batchOpenFiles')) {
+        sessionStorage.removeItem('batchOpenFiles');
+        const files = document.getElementById('files-section');
+        if (files) {
+          files.open = true;
+          files.scrollIntoView();
+        }
+      }
+    });
+
+    function filenameFromDisposition(header, fallback) {
+      const match = header && /filename="?([^"]+)"?/.exec(header);
+      return match ? match[1] : fallback;
+    }
+
+    function post(url, payload) {
+      return fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+        body: JSON.stringify(payload),
+      });
+    }
+
+    button.addEventListener('click', async function () {
+      const inst = document.getElementById('batch-instrument').value.trim();
       const user = document.getElementById('batch-user').value;
       const count = parseInt(document.getElementById('batch-count').value, 10);
       const proj = section.dataset.projectCode;
       const exp = section.dataset.experimentCode;
       const samp = section.dataset.sampleCode;
 
-      if (!Number.isFinite(count) || count < 1) {
-        output.textContent = '';
+      if (!inst || !user || !Number.isInteger(count) || count < 1) {
+        message.textContent = 'Please fill in all fields (acquisitions must be a whole number ≥ 1).';
         return;
       }
 
@@ -163,12 +198,52 @@
         + String(now.getMonth() + 1).padStart(2, '0')
         + String(now.getDate()).padStart(2, '0');
 
-      const lines = [];
+      const names = [];
       for (let i = 1; i <= count; i++) {
         const n = String(i).padStart(2, '0');
-        lines.push(`${inst}_${date}_${proj}_${user}_${exp}_${samp}_${n}`);
+        names.push(`${inst}_${date}_${proj}_${user}_${exp}_${samp}_${n}`);
       }
-      output.textContent = lines.join('\n');
+
+      const payload = { names: names, instrument_initial: inst, user_initials: user, date: date };
+
+      message.textContent = 'Generating sequence file…';
+      button.disabled = true;
+      try {
+        // 1. Download the Xcalibur CSV (no DB write).
+        const csvResp = await post(section.dataset.csvUrl, payload);
+        if (!csvResp.ok) {
+          message.textContent = 'Could not generate the CSV (server error).';
+          return;
+        }
+        const blob = await csvResp.blob();
+        const filename = filenameFromDisposition(
+          csvResp.headers.get('Content-Disposition'), `${proj}_${exp}_${samp}_queue.csv`);
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(objectUrl);
+
+        // 2. Ask whether to persist the queued files.
+        if (!confirm(`Add ${names.length} queued file${names.length === 1 ? '' : 's'} to the database?`)) {
+          message.textContent = 'CSV downloaded. No files were added to the database.';
+          return;
+        }
+
+        // 3. Persist the QUEUED file records, then reload to show them.
+        const queueResp = await post(section.dataset.queueUrl, payload);
+        if (!queueResp.ok) {
+          message.textContent = 'CSV downloaded, but adding files to the database failed.';
+          return;
+        }
+        sessionStorage.setItem('batchOpenFiles', '1');
+        location.reload();
+      } finally {
+        button.disabled = false;
+      }
     });
   })();
 </script>

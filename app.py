@@ -1,11 +1,16 @@
+import base64
+import csv
+import io
 import os
 import re
 import sqlite3
+from datetime import datetime
+from string import ascii_letters, digits
 
 import click
 from collections import defaultdict
 
-from flask import Flask, flash, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, abort, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import event, func
 from sqlalchemy.engine import Engine
 from flask_wtf import CSRFProtect
@@ -770,10 +775,113 @@ def sample_detail(project_code, experiment_code, code):
     sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
     total_size_gb = sum(f.size_bytes or 0 for f in sample.files) / (1024 ** 3)
     users = {u.initials: u.name for u in User.query.all()}
+    active_users = User.query.filter_by(active=True).order_by(User.name).all()
     return render_template(
         "sample/detail.html", sample=sample,
         file_count=len(sample.files), total_size_gb=total_size_gb, users=users,
+        active_users=active_users,
     )
+
+
+# Direct (unescaped) characters in the Xcalibur sequence file's modified UTF-7:
+# letters, digits, space, the structural punctuation that appears literally, and
+# the newline. Every other character (notably _ - = " \) is emitted as a base64 run.
+_XCALIBUR_DIRECT = set(ascii_letters + digits + " ,:/.()\n")
+
+
+def xcalibur_encode(text):
+    """Encode text as the modified UTF-7 dialect Thermo Xcalibur sequence files use.
+
+    Reproduces ExampleQueue.csv byte-for-byte: runs of non-direct characters are
+    written as ``+<base64(UTF-16BE), '=' stripped>-``.
+    """
+    out = []
+    i = 0
+    n = len(text)
+    while i < n:
+        if text[i] in _XCALIBUR_DIRECT:
+            out.append(text[i])
+            i += 1
+        else:
+            j = i
+            while j < n and text[j] not in _XCALIBUR_DIRECT:
+                j += 1
+            run = text[i:j].encode("utf-16-be")
+            out.append("+" + base64.b64encode(run).decode("ascii").rstrip("=") + "-")
+            i = j
+    return "".join(out).encode("ascii")
+
+
+def build_batch_csv(names, day, project_code, experiment_code, sample_code, sample_name):
+    """Build a Thermo Xcalibur sequence CSV (UTF-7 bytes) for the given file names."""
+    path = f"D:\\Data\\{day:%Y}\\{day:%y}{day:%m}\\{day:%y%m%d}"
+    comment = f"{project_code}_{experiment_code}_{sample_code} - {sample_name}"
+    buf = io.StringIO()
+    writer = csv.writer(buf, lineterminator="\n")
+    writer.writerow(["Bracket Type=4", "", "", "", "", ""])
+    writer.writerow(["File Name", "Path", "Instrument Method", "Position", "Inj Vol", "Comment"])
+    for name in names:
+        writer.writerow([name, path, "", "", "", comment])
+    return xcalibur_encode(buf.getvalue())
+
+
+def _batch_payload(project_code, experiment_code, code):
+    """Validate a batch POST and return (sample, names, instrument, user, day).
+
+    Aborts with 400 if the payload is missing fields or malformed.
+    """
+    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
+    data = request.get_json(silent=True) or {}
+    names = data.get("names")
+    inst = (data.get("instrument_initial") or "").strip()
+    user = (data.get("user_initials") or "").strip()
+    date_str = (data.get("date") or "").strip()
+    if not isinstance(names, list) or not names or not all(isinstance(n, str) and n for n in names):
+        abort(400, "names must be a non-empty list of strings")
+    if not inst or not user:
+        abort(400, "instrument_initial and user_initials are required")
+    try:
+        day = datetime.strptime(date_str, "%Y%m%d").date()
+    except ValueError:
+        abort(400, "date must be YYYYMMDD")
+    return sample, names, inst, user, day
+
+
+@app.route(
+    "/projects/<project_code>/experiments/<experiment_code>/samples/<code>/batch/csv",
+    methods=["POST"],
+)
+def sample_batch_csv(project_code, experiment_code, code):
+    sample, names, _inst, _user, day = _batch_payload(project_code, experiment_code, code)
+    csv_bytes = build_batch_csv(
+        names, day, project_code, experiment_code, code, sample.name
+    )
+    resp = Response(csv_bytes, mimetype="text/csv")
+    resp.headers["Content-Disposition"] = (
+        f'attachment; filename="{project_code}_{experiment_code}_{code}_queue.csv"'
+    )
+    return resp
+
+
+@app.route(
+    "/projects/<project_code>/experiments/<experiment_code>/samples/<code>/batch/queue",
+    methods=["POST"],
+)
+def sample_batch_queue(project_code, experiment_code, code):
+    _sample, names, inst, user, day = _batch_payload(project_code, experiment_code, code)
+    for name in names:
+        db.session.add(MassSpecAcquisition(
+            project_code=project_code,
+            experiment_code=experiment_code,
+            sample_code=code,
+            location="QUEUED",
+            filename=name,
+            instrument_initial=inst,
+            user_initials=user,
+            date=day,
+        ))
+    db.session.commit()
+    return jsonify({"count": len(names)})
 
 
 @app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/edit", methods=["GET", "POST"])

@@ -21,8 +21,6 @@
       <th>Files</th>
       <th>Active</th>
       <th>Contact</th>
-      <!-- <th>Active</th>
-      <th></th> -->
     </tr>
   </thead>
   <tbody>
@@ -34,9 +32,7 @@
       <td>{{ exp_counts[project.code] }}</td>
       <td>{{ sample_counts[project.code] }}</td>
       <td>{{ file_counts[project.code] or '' }}</td>
-      <td>{{ 'Active' if project.active else 'Archived' }}</td>
-      <td>{{ users.get(project.user_initials, project.user_initials or '') }}</td>
-      <!-- <td>
+      <td>
         <input type="checkbox"
                {% if project.active %}checked{% endif %}
                data-id="{{ project.code }}"
@@ -44,15 +40,15 @@
                title="{{ 'Active' if project.active else 'Archived' }}"
                onchange="toggleActive(this)">
       </td>
-      <td><a href="{{ url_for('project_edit', code=project.code) }}">Edit</a></td> -->
+      <td>{{ users.get(project.user_initials, project.user_initials or '') }}</td>
     </tr>
     {% else %}
-    <tr><td colspan="9">No projects found.</td></tr>
+    <tr><td colspan="8">No projects found.</td></tr>
     {% endfor %}
   </tbody>
 </table>
 {% endblock %}
-{# {% block scripts %}
+{% block scripts %}
 <script>
 function toggleActive(cb) {
   const id = cb.dataset.id;
@@ -69,4 +65,4 @@ function toggleActive(cb) {
   });
 }
 </script>
-{% endblock %} #}
+{% endblock %}
