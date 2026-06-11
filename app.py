@@ -837,27 +837,6 @@ def sample_batch_csv(project_code, experiment_code, code):
     return resp
 
 
-@app.route(
-    "/projects/<project_code>/experiments/<experiment_code>/samples/<code>/batch/queue",
-    methods=["POST"],
-)
-def sample_batch_queue(project_code, experiment_code, code):
-    _sample, names, inst, user, day = _batch_payload(project_code, experiment_code, code)
-    for name in names:
-        db.session.add(MassSpecAcquisition(
-            project_code=project_code,
-            experiment_code=experiment_code,
-            sample_code=code,
-            location="QUEUED",
-            filename=name,
-            instrument_initial=inst,
-            user_initials=user,
-            date=day,
-        ))
-    db.session.commit()
-    return jsonify({"count": len(names)})
-
-
 @app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/edit", methods=["GET", "POST"])
 def sample_edit(project_code, experiment_code, code):
     sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
