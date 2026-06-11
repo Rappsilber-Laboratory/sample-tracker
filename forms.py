@@ -12,8 +12,13 @@ from wtforms import (
 from wtforms.validators import DataRequired, Optional, ValidationError
 
 
+def no_underscores(form, field):
+    if field.data and "_" in field.data:
+        raise ValidationError("Code must not contain underscores.")
+
+
 class ProjectForm(FlaskForm):
-    code = StringField("Code", validators=[DataRequired()])
+    code = StringField("Code", validators=[DataRequired(), no_underscores])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
@@ -22,7 +27,7 @@ class ProjectForm(FlaskForm):
 
 class ExperimentForm(FlaskForm):
     project_code = SelectField("Project", coerce=str, validators=[DataRequired()])
-    code = StringField("Code", validators=[DataRequired()])
+    code = StringField("Code", validators=[DataRequired(), no_underscores])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
@@ -60,7 +65,7 @@ class UserForm(FlaskForm):
 
 class MassSpecSampleForm(FlaskForm):
     experiment_code = SelectField("Experiment", coerce=str, validators=[DataRequired()])
-    code = StringField("Code", validators=[DataRequired()])
+    code = StringField("Code", validators=[DataRequired(), no_underscores])
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", coerce=str, validators=[DataRequired()])

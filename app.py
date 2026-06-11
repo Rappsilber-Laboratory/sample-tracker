@@ -1,11 +1,9 @@
-import base64
 import csv
 import io
 import os
 import re
 import sqlite3
 from datetime import datetime
-from string import ascii_letters, digits
 
 import click
 from collections import defaultdict
@@ -219,7 +217,6 @@ def project_list():
         p.code: MassSpecAcquisition.query.join(MassSpecSample).join(Experiment).filter(Experiment.project_code == p.code).count()
         for p in projects
     }
-    projects = sorted(projects, key=lambda p: exp_counts[p.code], reverse=True)
     return render_template(
         "project/list.html", projects=projects, show_archived=show_archived,
         users=users, exp_counts=exp_counts, sample_counts=sample_counts, file_counts=file_counts
@@ -783,37 +780,14 @@ def sample_detail(project_code, experiment_code, code):
     )
 
 
-# Direct (unescaped) characters in the Xcalibur sequence file's modified UTF-7:
-# letters, digits, space, the structural punctuation that appears literally, and
-# the newline. Every other character (notably _ - = " \) is emitted as a base64 run.
-_XCALIBUR_DIRECT = set(ascii_letters + digits + " ,:/.()\n")
-
-
-def xcalibur_encode(text):
-    """Encode text as the modified UTF-7 dialect Thermo Xcalibur sequence files use.
-
-    Reproduces ExampleQueue.csv byte-for-byte: runs of non-direct characters are
-    written as ``+<base64(UTF-16BE), '=' stripped>-``.
-    """
-    out = []
-    i = 0
-    n = len(text)
-    while i < n:
-        if text[i] in _XCALIBUR_DIRECT:
-            out.append(text[i])
-            i += 1
-        else:
-            j = i
-            while j < n and text[j] not in _XCALIBUR_DIRECT:
-                j += 1
-            run = text[i:j].encode("utf-16-be")
-            out.append("+" + base64.b64encode(run).decode("ascii").rstrip("=") + "-")
-            i = j
-    return "".join(out).encode("ascii")
-
-
 def build_batch_csv(names, day, project_code, experiment_code, sample_code, sample_name):
-    """Build a Thermo Xcalibur sequence CSV (UTF-7 bytes) for the given file names."""
+    """Build a Thermo Xcalibur sequence CSV for the given file names.
+
+    Xcalibur sequence files are plain Windows-ANSI (cp1252) text, not UTF-7 —
+    so codes, the data path, etc. are written literally. cp1252 keeps all ASCII
+    as-is and still handles the occasional µ/°/etc. in a sample name; anything it
+    can't represent is replaced rather than crashing the export.
+    """
     path = f"D:\\Data\\{day:%Y}\\{day:%y}{day:%m}\\{day:%y%m%d}"
     comment = f"{project_code}_{experiment_code}_{sample_code} - {sample_name}"
     buf = io.StringIO()
@@ -822,7 +796,7 @@ def build_batch_csv(names, day, project_code, experiment_code, sample_code, samp
     writer.writerow(["File Name", "Path", "Instrument Method", "Position", "Inj Vol", "Comment"])
     for name in names:
         writer.writerow([name, path, "", "", "", comment])
-    return xcalibur_encode(buf.getvalue())
+    return buf.getvalue().encode("cp1252", errors="replace")
 
 
 def _batch_payload(project_code, experiment_code, code):
