@@ -297,7 +297,7 @@ def project_create():
         db.session.add(project)
         db.session.commit()
         flash("Project created.", "success")
-        return redirect(url_for("project_list"))
+        return redirect(url_for("project_detail", code=project.code))
     return render_template("project/form.html", form=form, project=None)
 
 
@@ -334,11 +334,6 @@ def _user_name_choices():
 # ---------------------------------------------------------------------------
 # Experiments
 # ---------------------------------------------------------------------------
-def _active_project_choices():
-    projects = Project.query.filter_by(active=True).order_by(Project.name).all()
-    return [(p.code, f"{p.code} — {p.name}") for p in projects]
-
-
 @app.route("/experiments")
 def experiment_list():
     show_archived = request.args.get("show_archived", "0") == "1"
@@ -372,31 +367,31 @@ def experiment_detail(project_code, code):
     )
 
 
-@app.route("/experiments/new", methods=["GET", "POST"])
-def experiment_create():
+@app.route("/projects/<project_code>/experiments/new", methods=["GET", "POST"])
+def experiment_create(project_code):
+    # The parent project is fixed by the URL (you reach this page from a project),
+    # so there's no project selector — it's shown read-only on the form.
+    project = db.get_or_404(Project, project_code)
     form = ExperimentForm()
-    form.project_code.choices = _active_project_choices()
+    del form.project_code
     form.user_initials.choices = _user_initials_choices()
     if request.method == "GET":
-        if request.args.get("project_code"):
-            form.project_code.data = request.args["project_code"]
-            project = db.session.get(Project, request.args["project_code"])
-            if project and project.user_initials:
-                form.user_initials.data = project.user_initials
-        # Default code from the count of experiments in the selected project.
-        selected_project = form.project_code.data or (
-            form.project_code.choices[0][0] if form.project_code.choices else None
-        )
-        if selected_project:
-            form.code.data = _next_experiment_code(selected_project)
+        if project.user_initials:
+            form.user_initials.data = project.user_initials
+        form.code.data = _next_experiment_code(project_code)
     if form.validate_on_submit():
         experiment = Experiment()
         form.populate_obj(experiment)
+        experiment.project_code = project_code
         db.session.add(experiment)
         db.session.commit()
         flash("Experiment created.", "success")
-        return redirect(url_for("project_detail", code=experiment.project_code))
-    return render_template("experiment/form.html", form=form, experiment=None, samples=[])
+        return redirect(url_for("experiment_detail", project_code=experiment.project_code, code=experiment.code))
+    cancel_url = url_for("project_detail", code=project_code)
+    return render_template(
+        "experiment/form.html", form=form, experiment=None, samples=[],
+        project=project, cancel_url=cancel_url,
+    )
 
 
 @app.route("/projects/<project_code>/experiments/<code>/edit", methods=["GET", "POST"])
@@ -440,7 +435,7 @@ def species_create():
         db.session.add(species)
         db.session.commit()
         flash("Species created.", "success")
-        return redirect(url_for("species_list"))
+        return redirect(url_for("species_detail", id=species.id))
     return render_template("species/form.html", form=form, species=None)
 
 
@@ -492,7 +487,7 @@ def cell_line_create():
         cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         db.session.commit()
         flash("Cell line created.", "success")
-        return redirect(url_for("cell_line_list"))
+        return redirect(url_for("cell_line_detail", cellosaurus_id=cl.cellosaurus_id))
     return render_template("cell_line/form.html", form=form, cell_line=None)
 
 
@@ -506,6 +501,7 @@ def cell_line_detail(cellosaurus_id):
 def cell_line_edit(cellosaurus_id):
     cl = db.get_or_404(CellLine, cellosaurus_id)
     form = CellLineForm(obj=cl)
+    del form.cellosaurus_id  # primary key — not editable after creation
     form.species_id.choices = _species_choices()
     form.virus_ids.choices = _virus_multi_choices()
     if request.method == "GET":
@@ -540,7 +536,7 @@ def virus_create():
         db.session.add(virus)
         db.session.commit()
         flash("Virus created.", "success")
-        return redirect(url_for("virus_list"))
+        return redirect(url_for("virus_detail", id=virus.id))
     return render_template("virus/form.html", form=form, virus=None)
 
 
@@ -585,7 +581,7 @@ def user_create():
         db.session.add(user)
         db.session.commit()
         flash("User created.", "success")
-        return redirect(url_for("user_list"))
+        return redirect(url_for("user_detail", initials=user.initials))
     return render_template("user/form.html", form=form, user=None)
 
 
@@ -599,6 +595,7 @@ def user_detail(initials):
 def user_edit(initials):
     user = db.get_or_404(User, initials)
     form = UserForm(obj=user)
+    del form.initials  # primary key — not editable after creation
     if form.validate_on_submit():
         form.populate_obj(user)
         db.session.commit()
@@ -610,16 +607,6 @@ def user_edit(initials):
 # ---------------------------------------------------------------------------
 # Samples
 # ---------------------------------------------------------------------------
-def _experiment_choices():
-    experiments = (
-        Experiment.query.join(Project)
-        .filter(Project.active == True, Experiment.active == True)  # noqa: E712
-        .order_by(Experiment.name)
-        .all()
-    )
-    return [(_exp_token(e.project_code, e.code), f"{e.project.code} — {e.name}") for e in experiments]
-
-
 def _sample_copy_choices():
     """Options for the 'copy from existing sample' dropdown on the new-sample form."""
     samples = (
@@ -691,11 +678,15 @@ def sample_list():
     return render_template("sample/list.html", samples=samples, users=users)
 
 
-@app.route("/samples/new", methods=["GET", "POST"])
-def sample_create():
-    # Optionally pre-fill the form from an existing sample (everything except
-    # the identity fields code/name). Only relevant on GET — on POST the values
-    # come from the submitted form.
+@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/new", methods=["GET", "POST"])
+def sample_create(project_code, experiment_code):
+    # The parent experiment is fixed by the URL (you reach this page from an
+    # experiment), so there's no experiment selector — it's shown read-only.
+    experiment = db.get_or_404(Experiment, (project_code, experiment_code))
+
+    # Optionally pre-fill the form from an existing sample (everything except the
+    # identity fields code/name and the parent experiment). Only relevant on GET —
+    # on POST the values come from the submitted form.
     copy_source = None
     copy_from = request.values.get("copy_from")
     if copy_from:
@@ -710,34 +701,19 @@ def sample_create():
         form.name.data = ""
         form.crosslinked_sample.data = bool(copy_source.crosslinked_sample)
         form.quantitation.data = bool(copy_source.quantitation)
-        form.experiment_code.data = _exp_token(copy_source.project_code, copy_source.experiment_code)
         form.species_ids.data = [s.id for s in copy_source.species_list]
         form.cellosaurus_ids.data = [cl.cellosaurus_id for cl in copy_source.cell_lines]
     else:
         form = MassSpecSampleForm()
 
-    form.experiment_code.choices = _experiment_choices()
+    del form.experiment_code
     form.user_initials.choices = _user_initials_choices()
     form.species_ids.choices = _species_multi_choices()
     form.cellosaurus_ids.choices = _cell_line_multi_choices()
-    if (
-        request.method == "GET" and not copy_source
-        and request.args.get("project_code") and request.args.get("experiment_code")
-    ):
-        project_code = request.args["project_code"]
-        experiment_code = request.args["experiment_code"]
-        form.experiment_code.data = _exp_token(project_code, experiment_code)
-        experiment = db.session.get(Experiment, (project_code, experiment_code))
-        if experiment and experiment.user_initials:
-            form.user_initials.data = experiment.user_initials
     if request.method == "GET":
-        # Default code from the count of samples in the selected experiment.
-        selected_exp = form.experiment_code.data or (
-            form.experiment_code.choices[0][0] if form.experiment_code.choices else None
-        )
-        parts = _split_token(selected_exp) if selected_exp else ()
-        if len(parts) == 2:
-            form.code.data = _next_sample_code(parts[0], parts[1])
+        if not copy_source and experiment.user_initials:
+            form.user_initials.data = experiment.user_initials
+        form.code.data = _next_sample_code(project_code, experiment_code)
     if form.validate_on_submit():
         is_crosslinked = form.crosslinked_sample.data
         if is_crosslinked:
@@ -745,7 +721,8 @@ def sample_create():
         else:
             sample = IdentificationSample()
         form.populate_obj(sample)
-        sample.project_code, sample.experiment_code = _split_token(form.experiment_code.data)
+        sample.project_code = project_code
+        sample.experiment_code = experiment_code
         sample.crosslinked_sample = 1 if is_crosslinked else 0
         sample.quantitation = 1 if form.quantitation.data else 0
         _coerce_select_fields(sample)
@@ -760,10 +737,11 @@ def sample_create():
         ).all()
         db.session.commit()
         flash("Sample created.", "success")
-        return redirect(url_for("experiment_detail", project_code=sample.project_code, code=sample.experiment_code))
+        return redirect(url_for("sample_detail", project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code))
+    cancel_url = url_for("experiment_detail", project_code=project_code, code=experiment_code)
     return render_template(
-        "sample/form.html", form=form, sample=None,
-        copy_samples=_sample_copy_choices(), copy_from=copy_from,
+        "sample/form.html", form=form, sample=None, experiment=experiment,
+        copy_samples=_sample_copy_choices(), copy_from=copy_from, cancel_url=cancel_url,
     )
 
 
@@ -911,7 +889,7 @@ def file_create(project_code, experiment_code, code):
         db.session.add(f)
         db.session.commit()
         flash("File record created.", "success")
-        return redirect(url_for("sample_edit", project_code=project_code, experiment_code=experiment_code, code=code))
+        return redirect(url_for("file_detail", id=f.id))
     return render_template("file/form.html", form=form, file=None, sample=sample)
 
 

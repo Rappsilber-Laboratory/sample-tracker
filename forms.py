@@ -107,7 +107,7 @@ class MassSpecSampleForm(FlaskForm):
     )
 
     # Crosslink fields
-    crosslinker = StringField("Crosslinker", default="N/A", validators=[Optional()])
+    crosslinker = StringField("Crosslinker", validators=[Optional()])
     crosslinking_type = SelectField(
         "Crosslinking Type",
         choices=[
@@ -123,19 +123,19 @@ class MassSpecSampleForm(FlaskForm):
         "Protein or Cell Concentration", validators=[Optional()]
     )
     protein_or_cell_concentration_unit = StringField(
-        "Protein or Cell Concentration Unit", default="N/A", validators=[Optional()]
+        "Protein or Cell Concentration Unit", validators=[Optional()]
     )
     crosslinker_or_compound_concentration = FloatField(
         "Crosslinker or Compound Concentration", validators=[Optional()]
     )
     crosslinker_or_compound_concentration_unit = StringField(
-        "Crosslinker or Compound Concentration Unit", default="N/A", validators=[Optional()]
+        "Crosslinker or Compound Concentration Unit", validators=[Optional()]
     )
     organic_solvent_concentration = FloatField(
         "Organic Solvent Concentration", validators=[Optional()]
     )
     organic_solvent_concentration_unit = StringField(
-        "Organic Solvent Concentration Unit", default="N/A", validators=[Optional()]
+        "Organic Solvent Concentration Unit", validators=[Optional()]
     )
     reaction_temperature_in_celsius = FloatField(
         "Reaction Temperature (°C)", validators=[Optional()]

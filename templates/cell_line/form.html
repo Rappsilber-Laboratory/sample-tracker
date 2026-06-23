@@ -10,7 +10,13 @@
 {% endif %}
 <form method="post">
   {{ form.hidden_tag() }}
-  <p>{{ render_field(form.cellosaurus_id) }} <a href="https://www.cellosaurus.org/search" target="_blank" rel="noopener">Look up Cellosaurus ID</a></p>
+  {% if cell_line %}
+  <p><strong>Cellosaurus ID:</strong> {{ cell_line.cellosaurus_id }}</p>
+  {% else %}
+  <p>{{ render_field(form.cellosaurus_id) }} <a href="https://www.cellosaurus.org/search" target="_blank" rel="noopener">Look up Cellosaurus ID</a>
+    <small class="field-warning">⚠ The Cellosaurus ID cannot be changed after creation.</small>
+  </p>
+  {% endif %}
   <p>{{ render_field(form.cell_line_name) }}</p>
   <p>{{ render_field(form.species_id) }}</p>
 {#  <p>{{ render_field(form.virus_ids) }}</p>#}

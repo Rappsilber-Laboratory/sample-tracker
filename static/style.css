@@ -79,6 +79,33 @@ label { font-size: 0.92rem; }
   margin-bottom: 0.5em;
 }
 
+.field-warning {
+  display: block;
+  color: #8a5a00;
+  font-size: 0.85em;
+  margin-top: 0.15em;
+  margin-bottom: 0.5em;
+}
+
+/* fieldsets nested in collapsible sections are layout-only — drop the inner box */
+details > fieldset {
+  border: 0;
+  padding: 0;
+  margin-bottom: 0;
+}
+
+/* outlined box grouping related fields with their hints */
+.field-group {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 0.5em 0.75em;
+  margin-bottom: 0.75em;
+}
+
+.field-group > :last-child {
+  margin-bottom: 0;
+}
+
 .hl-project    { background-color: #fde2a7; color: #5a3a00; padding: 0 2px; border-radius: 2px; }
 .hl-experiment { background-color: #c6e7c2; color: #1f4d1a; padding: 0 2px; border-radius: 2px; }
 .hl-sample     { background-color: #c8dafc; color: #0d3a8a; padding: 0 2px; border-radius: 2px; }

@@ -13,7 +13,9 @@
   {% if project %}
   <p><strong>Code:</strong> {{ project.code }}</p>
   {% else %}
-  <p>{{ render_field(form.code) }}</p>
+  <p>{{ render_field(form.code) }}
+    <small class="field-warning">⚠ The code cannot be changed after creation.</small>
+  </p>
   {% endif %}
   <p>{{ render_field(form.name) }}</p>
   <p>{{ render_field(form.description) }}</p>

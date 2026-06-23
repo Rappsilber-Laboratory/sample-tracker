@@ -11,7 +11,13 @@
 <form method="post">
   {{ form.hidden_tag() }}
   <p>{{ render_field(form.name) }}</p>
-  <p>{{ render_field(form.initials) }}</p>
+  {% if user %}
+  <p><strong>Initials:</strong> {{ user.initials }}</p>
+  {% else %}
+  <p>{{ render_field(form.initials) }}
+    <small class="field-warning">⚠ The initials cannot be changed after creation.</small>
+  </p>
+  {% endif %}
   <p>{{ render_field(form.active) }}</p>
   <button type="submit">Save</button>
   {% if user %}

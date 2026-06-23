@@ -40,6 +40,38 @@
   <p id="batch-message" role="status"></p>
 </section>
 
+{% if sample.crosslinked_sample %}
+<details>
+  <summary>Crosslink Details</summary>
+  <table>
+    <tbody>
+      {% if sample.crosslinker %}<tr><th>Crosslinker</th><td>{{ sample.crosslinker }}</td></tr>{% endif %}
+      {% if sample.crosslinking_type %}<tr><th>Crosslinking Type</th><td>{{ sample.crosslinking_type }}</td></tr>{% endif %}
+      {% if sample.protein_or_cell_concentration %}<tr><th title="Concentration of proteins or cells in the reaction. For isolated protein samples: molar (e.g. mM) or weight (e.g. mg/mL). For in vivo crosslinking: cell count per volume (e.g. 1 × 10⁶ cells/mL).">Protein or Cell Concentration</th><td>{{ sample.protein_or_cell_concentration }}{% if sample.protein_or_cell_concentration_unit %} {{ sample.protein_or_cell_concentration_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.crosslinker_or_compound_concentration %}<tr><th title="Final concentration of the crosslinker or compound in the reaction mixture — not the stock solution concentration. Typically molar (e.g. mM) or weight (e.g. mg/mL).">Crosslinker or Compound Concentration</th><td>{{ sample.crosslinker_or_compound_concentration }}{% if sample.crosslinker_or_compound_concentration_unit %} {{ sample.crosslinker_or_compound_concentration_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.organic_solvent_concentration %}<tr><th title="Final concentration of organic solvent in the reaction (crosslinker stock solutions are sometimes dissolved in organic solvents). Typically molar (e.g. 5 µM) or a volume fraction such as 2% v/v.">Organic Solvent Concentration</th><td>{{ sample.organic_solvent_concentration }}{% if sample.organic_solvent_concentration_unit %} {{ sample.organic_solvent_concentration_unit }}{% endif %}</td></tr>{% endif %}
+      {% if sample.reaction_temperature_in_celsius %}<tr><th>Reaction Temperature</th><td>{{ sample.reaction_temperature_in_celsius }} °C</td></tr>{% endif %}
+      {% if sample.reaction_time_in_minutes %}<tr><th>Reaction Time</th><td>{{ sample.reaction_time_in_minutes }} min</td></tr>{% endif %}
+      {% if sample.quenching_reagent %}<tr><th>Quenching Reagent</th><td>{{ sample.quenching_reagent }}</td></tr>{% endif %}
+      {% if sample.uv_source %}<tr><th>UV Source</th><td>{{ sample.uv_source }}</td></tr>{% endif %}
+      {% if sample.uv_time_in_seconds %}<tr><th>UV Time</th><td>{{ sample.uv_time_in_seconds }} s</td></tr>{% endif %}
+      {% if sample.uv_wavelength_in_nanometers %}<tr><th>UV Wavelength</th><td>{{ sample.uv_wavelength_in_nanometers }} nm</td></tr>{% endif %}
+    </tbody>
+  </table>
+</details>
+{% else %}
+{% if sample.peptide_level_fraction %}
+<details>
+  <summary>Identification Details</summary>
+  <table>
+    <tbody>
+      <tr><th>Peptide Level Fraction</th><td>{{ sample.peptide_level_fraction }}</td></tr>
+    </tbody>
+  </table>
+</details>
+{% endif %}
+{% endif %}
+
 {% if sample.species_list %}
 <details>
   <summary>Species</summary>
@@ -78,38 +110,6 @@
     </tbody>
   </table>
 </details>
-{% endif %}
-
-{% if sample.crosslinked_sample %}
-<details>
-  <summary>Crosslink Details</summary>
-  <table>
-    <tbody>
-      {% if sample.crosslinker %}<tr><th>Crosslinker</th><td>{{ sample.crosslinker }}</td></tr>{% endif %}
-      {% if sample.crosslinking_type %}<tr><th>Crosslinking Type</th><td>{{ sample.crosslinking_type }}</td></tr>{% endif %}
-      {% if sample.protein_or_cell_concentration %}<tr><th title="Concentration of proteins or cells in the reaction. For isolated protein samples: molar (e.g. mM) or weight (e.g. mg/mL). For in vivo crosslinking: cell count per volume (e.g. 1 × 10⁶ cells/mL).">Protein or Cell Concentration</th><td>{{ sample.protein_or_cell_concentration }}{% if sample.protein_or_cell_concentration_unit %} {{ sample.protein_or_cell_concentration_unit }}{% endif %}</td></tr>{% endif %}
-      {% if sample.crosslinker_or_compound_concentration %}<tr><th title="Final concentration of the crosslinker or compound in the reaction mixture — not the stock solution concentration. Typically molar (e.g. mM) or weight (e.g. mg/mL).">Crosslinker or Compound Concentration</th><td>{{ sample.crosslinker_or_compound_concentration }}{% if sample.crosslinker_or_compound_concentration_unit %} {{ sample.crosslinker_or_compound_concentration_unit }}{% endif %}</td></tr>{% endif %}
-      {% if sample.organic_solvent_concentration %}<tr><th title="Final concentration of organic solvent in the reaction (crosslinker stock solutions are sometimes dissolved in organic solvents). Typically molar (e.g. 5 µM) or a volume fraction such as 2% v/v.">Organic Solvent Concentration</th><td>{{ sample.organic_solvent_concentration }}{% if sample.organic_solvent_concentration_unit %} {{ sample.organic_solvent_concentration_unit }}{% endif %}</td></tr>{% endif %}
-      {% if sample.reaction_temperature_in_celsius %}<tr><th>Reaction Temperature</th><td>{{ sample.reaction_temperature_in_celsius }} °C</td></tr>{% endif %}
-      {% if sample.reaction_time_in_minutes %}<tr><th>Reaction Time</th><td>{{ sample.reaction_time_in_minutes }} min</td></tr>{% endif %}
-      {% if sample.quenching_reagent %}<tr><th>Quenching Reagent</th><td>{{ sample.quenching_reagent }}</td></tr>{% endif %}
-      {% if sample.uv_source %}<tr><th>UV Source</th><td>{{ sample.uv_source }}</td></tr>{% endif %}
-      {% if sample.uv_time_in_seconds %}<tr><th>UV Time</th><td>{{ sample.uv_time_in_seconds }} s</td></tr>{% endif %}
-      {% if sample.uv_wavelength_in_nanometers %}<tr><th>UV Wavelength</th><td>{{ sample.uv_wavelength_in_nanometers }} nm</td></tr>{% endif %}
-    </tbody>
-  </table>
-</details>
-{% else %}
-{% if sample.peptide_level_fraction %}
-<details>
-  <summary>Identification Details</summary>
-  <table>
-    <tbody>
-      <tr><th>Peptide Level Fraction</th><td>{{ sample.peptide_level_fraction }}</td></tr>
-    </tbody>
-  </table>
-</details>
-{% endif %}
 {% endif %}
 
 {% if sample.quantitation %}

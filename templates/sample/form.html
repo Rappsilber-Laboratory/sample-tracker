@@ -7,14 +7,14 @@
 {% if sample %}
   <p><a href="{{ url_for('sample_detail', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Cancel</a></p>
 {% else %}
-  <p><a href="{{ url_for('sample_list') }}">Cancel</a></p>
+  <p><a href="{{ cancel_url }}">Cancel</a></p>
 {% endif %}
 {% if not sample and copy_samples %}
 <fieldset>
   <legend>Copy from existing sample</legend>
   <p>
     <label for="copy_from">Existing sample</label>
-    <select id="copy_from" name="copy_from_select" onchange="if (this.value) { window.location = '{{ url_for('sample_create') }}?copy_from=' + encodeURIComponent(this.value); }">
+    <select id="copy_from" name="copy_from_select" onchange="if (this.value) { window.location = '{{ url_for('sample_create', project_code=experiment.project_code, experiment_code=experiment.code) }}?copy_from=' + encodeURIComponent(this.value); }">
       <option value="">— none —</option>
       {% for token, label in copy_samples %}
       <option value="{{ token }}" {% if token == copy_from %}selected{% endif %}>{{ label }}</option>
@@ -34,14 +34,54 @@
     <p><strong>Experiment:</strong> {{ sample.experiment.project_code }} / {{ sample.experiment_code }}</p>
     <p><strong>Code:</strong> {{ sample.code }}</p>
     {% else %}
-    <p>{{ render_field(form.experiment_code) }}</p>
-    <p>{{ render_field(form.code) }}</p>
+    <p><strong>Experiment:</strong> {{ experiment.project_code }} / {{ experiment.code }} — {{ experiment.name }}</p>
+    <p>{{ render_field(form.code) }}
+      <small class="field-warning">⚠ The code cannot be changed after creation.</small>
+    </p>
     {% endif %}
     <p>{{ render_field(form.name) }}</p>
     <p>{{ render_field(form.description) }}</p>
     <p>{{ render_field(form.user_initials) }}</p>
     <p>{{ render_field(form.crosslinked_sample) }}</p>
   </fieldset>
+
+  <details id="crosslink-fields">
+    <summary>Crosslink Details</summary>
+    <fieldset>
+      <p>{{ render_field(form.crosslinker) }}</p>
+      <p>{{ render_field(form.crosslinking_type) }}</p>
+
+      <div class="field-group">
+        <p>{{ render_field(form.protein_or_cell_concentration) }}</p>
+        <p>{{ render_field(form.protein_or_cell_concentration_unit) }}</p>
+        <p class="field-hint">These two fields define the concentration of proteins or cells in a crosslinking reaction and should be entered as a numerical value and a corresponding unit. For isolated protein samples, the concentration is typically measured as either a molar concentration (e.g., mM) or a weight concentration (e.g., mg/mL). For in vivo crosslinking experiments, the concentration may instead be recorded as cell count per volume (e.g., 1 × 10⁶ cells/mL).</p>
+      </div>
+
+      <div class="field-group">
+        <p>{{ render_field(form.crosslinker_or_compound_concentration) }}</p>
+        <p>{{ render_field(form.crosslinker_or_compound_concentration_unit) }}</p>
+        <p class="field-hint">These two fields define the concentration of the crosslinker or another chemical compound in the crosslinking reaction. Note that the concentration recorded here should be the final concentration in the reaction mixture, not the concentration of the stock solution. The value should be entered as a numerical value together with a unit. Concentrations are typically measured as molar concentrations (e.g., mM) or weight concentrations (e.g., mg/mL).</p>
+      </div>
+
+      <div class="field-group">
+        <p>{{ render_field(form.organic_solvent_concentration) }}</p>
+        <p>{{ render_field(form.organic_solvent_concentration_unit) }}</p>
+        <p class="field-hint">Crosslinker stock solutions are sometimes prepared in organic solvents before being added to the crosslinking reaction. The final concentration of the organic solvent in the reaction should therefore also be recorded, as it may affect protein structure and may be important for interpreting the crosslinking data. This value can be entered as a numerical value together with a unit. In some cases, the concentration may be expressed as a molar concentration (e.g., 5 µM). More commonly, however, it is reported as a fraction of the total reaction volume (v/v), such as 2%. In the latter case, the unit field should be left empty.</p>
+      </div>
+      <p>{{ render_field(form.reaction_temperature_in_celsius) }}</p>
+      <p>{{ render_field(form.reaction_time_in_minutes) }}</p>
+      <p>{{ render_field(form.quenching_reagent) }}</p>
+      <p>{{ render_field(form.uv_source) }}</p>
+      <p>{{ render_field(form.uv_time_in_seconds) }}</p>
+      <p>{{ render_field(form.uv_wavelength_in_nanometers) }}</p>
+    </fieldset>
+  </details>
+
+  <div id="identification-fields">
+    <fieldset>
+      <p>{{ render_field(form.peptide_level_fraction) }}</p>
+    </fieldset>
+  </div>
 
   <details>
     <summary>Species</summary>
@@ -70,43 +110,6 @@
     </fieldset>
   </details>
 
-  <details id="crosslink-fields">
-    <summary>Crosslink Details</summary>
-    <fieldset>
-      <p>{{ render_field(form.crosslinker) }}</p>
-      <p>{{ render_field(form.crosslinking_type) }}</p>
-
-      <p class="field-hint">This set of questions concerns the experimental conditions of crosslinking reactions. Such reactions occur in solution and are carried out by mixing protein samples with crosslinkers. To document the reaction conditions, it is important to record the following information:</p>
-
-      <small class="field-hint">Protein or Cell Concentration (number)<br>Protein or Cell Concentration Unit (unit)</small>
-      <p>{{ render_field(form.protein_or_cell_concentration) }}</p>
-      <p>{{ render_field(form.protein_or_cell_concentration_unit) }}</p>
-      <small class="field-hint">These two fields define the concentration of proteins or cells in a crosslinking reaction and should be entered as a numerical value and a corresponding unit. For isolated protein samples, the concentration is typically measured as either a molar concentration (e.g., mM) or a weight concentration (e.g., mg/mL). For in vivo crosslinking experiments, the concentration may instead be recorded as cell count per volume (e.g., 1 × 10⁶ cells/mL).</small>
-
-      <small class="field-hint">Crosslinker or Compound Concentration<br>Crosslinker or Compound Concentration Unit</small>
-      <p>{{ render_field(form.crosslinker_or_compound_concentration) }}</p>
-      <p>{{ render_field(form.crosslinker_or_compound_concentration_unit) }}</p>
-      <small class="field-hint">These two fields define the concentration of the crosslinker or another chemical compound in the crosslinking reaction. Note that the concentration recorded here should be the final concentration in the reaction mixture, not the concentration of the stock solution. The value should be entered as a numerical value together with a unit. Concentrations are typically measured as molar concentrations (e.g., mM) or weight concentrations (e.g., mg/mL).</small>
-
-      <small class="field-hint">Organic Solvent Concentration<br>Organic Solvent Concentration Unit</small>
-      <p>{{ render_field(form.organic_solvent_concentration) }}</p>
-      <p>{{ render_field(form.organic_solvent_concentration_unit) }}</p>
-      <small class="field-hint">Crosslinker stock solutions are sometimes prepared in organic solvents before being added to the crosslinking reaction. The final concentration of the organic solvent in the reaction should therefore also be recorded, as it may affect protein structure and may be important for interpreting the crosslinking data. This value can be entered as a numerical value together with a unit. In some cases, the concentration may be expressed as a molar concentration (e.g., 5 µM). More commonly, however, it is reported as a fraction of the total reaction volume (v/v), such as 2%. In the latter case, the unit field should be left empty.</small>
-      <p>{{ render_field(form.reaction_temperature_in_celsius) }}</p>
-      <p>{{ render_field(form.reaction_time_in_minutes) }}</p>
-      <p>{{ render_field(form.quenching_reagent) }}</p>
-      <p>{{ render_field(form.uv_source) }}</p>
-      <p>{{ render_field(form.uv_time_in_seconds) }}</p>
-      <p>{{ render_field(form.uv_wavelength_in_nanometers) }}</p>
-    </fieldset>
-  </details>
-
-  <div id="identification-fields">
-    <fieldset>
-      <p>{{ render_field(form.peptide_level_fraction) }}</p>
-    </fieldset>
-  </div>
-
   <details>
     <summary>Quantitation</summary>
     <fieldset>
@@ -132,7 +135,7 @@
   {% if sample %}
     <a href="{{ url_for('sample_detail', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Cancel</a>
   {% else %}
-    <a href="{{ url_for('sample_list') }}">Cancel</a>
+    <a href="{{ cancel_url }}">Cancel</a>
   {% endif %}
 </form>
 
