@@ -121,7 +121,7 @@ CREATE TABLE user (
     active INTEGER NOT NULL DEFAULT 1
 );
 
-CREATE TABLE mass_spec_acquisition (
+CREATE TABLE acquired_file (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_code TEXT,
     experiment_code TEXT,
@@ -130,10 +130,24 @@ CREATE TABLE mass_spec_acquisition (
     filename TEXT,
     size_bytes INTEGER,
     instrument_initial TEXT,
-    date DATE,
+    file_date DATE,
     user_initials TEXT,
     scan_count INTEGER,
     meta TEXT,
+    FOREIGN KEY (project_code, experiment_code, sample_code)
+        REFERENCES mass_spec_sample(project_code, experiment_code, code)
+);
+
+CREATE TABLE queued_file (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_code TEXT,
+    experiment_code TEXT,
+    sample_code TEXT,
+    instrument_initial TEXT,
+    user_initials TEXT,
+    date_queued DATE,
+    daily_counter INTEGER,
+    postfix TEXT,
     FOREIGN KEY (project_code, experiment_code, sample_code)
         REFERENCES mass_spec_sample(project_code, experiment_code, code)
 );

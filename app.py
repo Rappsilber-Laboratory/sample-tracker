@@ -18,8 +18,8 @@ from config import Config
 from forms import (
     CellLineForm,
     ExperimentForm,
-    MassSpecAcquisitionEditForm,
-    MassSpecAcquisitionForm,
+    AcquiredFileEditForm,
+    AcquiredFileForm,
     MassSpecSampleForm,
     ProjectForm,
     SpeciesForm,
@@ -30,8 +30,8 @@ from models import (
     CellLine,
     CrosslinkSample,
     Experiment,
+    AcquiredFile,
     IdentificationSample,
-    MassSpecAcquisition,
     MassSpecSample,
     Project,
     Species,
@@ -113,7 +113,7 @@ def inject_nav_counts():
                 "species": db.session.query(Species).count(),
                 "cell_lines": db.session.query(CellLine).count(),
                 "viruses": db.session.query(Virus).count(),
-                "files": db.session.query(MassSpecAcquisition).count(),
+                "files": db.session.query(AcquiredFile).count(),
                 "users": db.session.query(User).count(),
             }
         }
@@ -157,7 +157,7 @@ def api_tree():
                 "total_bytes": int(f.size_bytes or 0),
                 "url": url_for("file_detail", id=f.id),
             }
-            for f in sample.files
+            for f in sample.acquired_files
         ]
         nodes.sort(key=lambda n: n["total_bytes"], reverse=True)
         return nodes
@@ -214,7 +214,7 @@ def project_list():
         for p in projects
     }
     file_counts = {
-        p.code: MassSpecAcquisition.query.join(MassSpecSample).join(Experiment).filter(Experiment.project_code == p.code).count()
+        p.code: AcquiredFile.query.join(MassSpecSample).join(Experiment).filter(Experiment.project_code == p.code).count()
         for p in projects
     }
     return render_template(
@@ -253,28 +253,28 @@ def project_detail(code):
         .order_by(MassSpecSample.name).all()
     )
     files = (
-        MassSpecAcquisition.query.join(MassSpecSample).join(Experiment)
-        .options(joinedload(MassSpecAcquisition.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
+        AcquiredFile.query.join(MassSpecSample).join(Experiment)
+        .options(joinedload(AcquiredFile.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
         .filter(Experiment.project_code == code)
-        .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename).all()
+        .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
     chart_rows = (
         db.session.query(
-            MassSpecAcquisition.date,
+            AcquiredFile.file_date,
             Experiment.code.label("experiment_code"),
-            func.sum(MassSpecAcquisition.size_bytes).label("total_bytes"),
+            func.sum(AcquiredFile.size_bytes).label("total_bytes"),
         )
-        .join(MassSpecAcquisition.sample)
+        .join(AcquiredFile.sample)
         .join(MassSpecSample.experiment)
         .filter(Experiment.project_code == code)
-        .filter(MassSpecAcquisition.date.isnot(None))
-        .group_by(MassSpecAcquisition.date, Experiment.code)
-        .order_by(MassSpecAcquisition.date)
+        .filter(AcquiredFile.file_date.isnot(None))
+        .group_by(AcquiredFile.file_date, Experiment.code)
+        .order_by(AcquiredFile.file_date)
         .all()
     )
     chart_data = [
-        {"date": row.date.isoformat(), "experiment": row.experiment_code, "gb": round((row.total_bytes or 0) / 1e9, 4)}
+        {"date": row.file_date.isoformat(), "experiment": row.experiment_code, "gb": round((row.total_bytes or 0) / 1e9, 4)}
         for row in chart_rows
     ]
     users = {u.initials: u.name for u in User.query.all()}
@@ -359,10 +359,10 @@ def experiment_detail(project_code, code):
         .order_by(MassSpecSample.name).all()
     )
     files = (
-        MassSpecAcquisition.query.join(MassSpecSample)
-        .options(joinedload(MassSpecAcquisition.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
+        AcquiredFile.query.join(MassSpecSample)
+        .options(joinedload(AcquiredFile.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
         .filter(MassSpecSample.project_code == project_code, MassSpecSample.experiment_code == code)
-        .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename).all()
+        .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
     users = {u.initials: u.name for u in User.query.all()}
@@ -770,12 +770,12 @@ def sample_create():
 @app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>")
 def sample_detail(project_code, experiment_code, code):
     sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
-    total_size_gb = sum(f.size_bytes or 0 for f in sample.files) / (1024 ** 3)
+    total_size_gb = sum(f.size_bytes or 0 for f in sample.acquired_files) / (1024 ** 3)
     users = {u.initials: u.name for u in User.query.all()}
     active_users = User.query.filter_by(active=True).order_by(User.name).all()
     return render_template(
         "sample/detail.html", sample=sample,
-        file_count=len(sample.files), total_size_gb=total_size_gb, users=users,
+        file_count=len(sample.acquired_files), total_size_gb=total_size_gb, users=users,
         active_users=active_users,
     )
 
@@ -886,10 +886,10 @@ def sample_edit(project_code, experiment_code, code):
 @app.route("/files")
 def file_list():
     files = (
-        MassSpecAcquisition.query.options(
-            joinedload(MassSpecAcquisition.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project)
+        AcquiredFile.query.options(
+            joinedload(AcquiredFile.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project)
         )
-        .order_by(MassSpecAcquisition.date.desc(), MassSpecAcquisition.filename)
+        .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename)
         .all()
     )
     users = {u.initials: u.name for u in User.query.all()}
@@ -899,9 +899,9 @@ def file_list():
 @app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/db-files/new", methods=["GET", "POST"])
 def file_create(project_code, experiment_code, code):
     sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
-    form = MassSpecAcquisitionForm()
+    form = AcquiredFileForm()
     if form.validate_on_submit():
-        f = MassSpecAcquisition(
+        f = AcquiredFile(
             project_code=project_code, experiment_code=experiment_code, sample_code=code
         )
         form.populate_obj(f)
@@ -917,7 +917,7 @@ def file_create(project_code, experiment_code, code):
 
 @app.route("/files/<int:id>")
 def file_detail(id):
-    f = db.get_or_404(MassSpecAcquisition, id)
+    f = db.get_or_404(AcquiredFile, id)
     return render_template("file/detail.html", file=f)
 
 
@@ -943,8 +943,8 @@ def _file_edit_tree():
 
 @app.route("/files/<int:id>/edit", methods=["GET", "POST"])
 def file_edit(id):
-    f = db.get_or_404(MassSpecAcquisition, id)
-    form = MassSpecAcquisitionEditForm()
+    f = db.get_or_404(AcquiredFile, id)
+    form = AcquiredFileEditForm()
     form.project_code.choices = [("", "—")] + [
         (p.code, f"{p.code} — {p.name}")
         for p in Project.query.order_by(Project.name).all()
@@ -980,7 +980,7 @@ def file_edit(id):
 
 @app.route("/files/<int:id>/delete", methods=["POST"])
 def file_delete(id):
-    f = db.get_or_404(MassSpecAcquisition, id)
+    f = db.get_or_404(AcquiredFile, id)
     key = (f.project_code, f.experiment_code, f.sample_code)
     db.session.delete(f)
     db.session.commit()
@@ -994,24 +994,24 @@ def file_delete(id):
 def instrument_usage():
     rows = (
         db.session.query(
-            MassSpecAcquisition.instrument_initial,
-            MassSpecAcquisition.date,
+            AcquiredFile.instrument_initial,
+            AcquiredFile.file_date,
             Project.code.label("project_code"),
-            func.sum(MassSpecAcquisition.size_bytes).label("total_bytes"),
+            func.sum(AcquiredFile.size_bytes).label("total_bytes"),
         )
-        .join(MassSpecAcquisition.sample)
+        .join(AcquiredFile.sample)
         .join(MassSpecSample.experiment)
         .join(Experiment.project)
-        .filter(MassSpecAcquisition.instrument_initial.isnot(None))
-        .filter(MassSpecAcquisition.date.isnot(None))
-        .group_by(MassSpecAcquisition.instrument_initial, MassSpecAcquisition.date, Project.code)
-        .order_by(MassSpecAcquisition.instrument_initial, MassSpecAcquisition.date)
+        .filter(AcquiredFile.instrument_initial.isnot(None))
+        .filter(AcquiredFile.file_date.isnot(None))
+        .group_by(AcquiredFile.instrument_initial, AcquiredFile.file_date, Project.code)
+        .order_by(AcquiredFile.instrument_initial, AcquiredFile.file_date)
         .all()
     )
     instruments = defaultdict(list)
     for row in rows:
         instruments[row.instrument_initial].append({
-            "date": row.date.isoformat(),
+            "date": row.file_date.isoformat(),
             "project": row.project_code,
             "gb": round((row.total_bytes or 0) / 1e9, 4),
         })
@@ -1023,13 +1023,13 @@ def disk_usage():
     rows = (
         db.session.query(
             Project.code.label("project_code"),
-            func.sum(MassSpecAcquisition.size_bytes).label("total_bytes"),
+            func.sum(AcquiredFile.size_bytes).label("total_bytes"),
         )
-        .join(MassSpecAcquisition.sample)
+        .join(AcquiredFile.sample)
         .join(MassSpecSample.experiment)
         .join(Experiment.project)
         .group_by(Project.code)
-        .order_by(func.sum(MassSpecAcquisition.size_bytes).desc())
+        .order_by(func.sum(AcquiredFile.size_bytes).desc())
         .all()
     )
     data = [

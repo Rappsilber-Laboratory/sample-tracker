@@ -176,8 +176,8 @@ class User(db.Model):
     active = db.Column(db.Boolean, nullable=False, default=True)
 
 
-class MassSpecAcquisition(db.Model):
-    __tablename__ = "mass_spec_acquisition"
+class AcquiredFile(db.Model):
+    __tablename__ = "acquired_file"
 
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     project_code = db.Column(db.Text, nullable=True)
@@ -187,7 +187,7 @@ class MassSpecAcquisition(db.Model):
     filename = db.Column(db.Text)
     size_bytes = db.Column(db.Integer)
     instrument_initial = db.Column(db.Text)
-    date = db.Column(db.Date)
+    file_date = db.Column(db.Date)
     user_initials = db.Column(db.Text)
     scan_count = db.Column(db.Integer)
     meta = db.Column(db.Text)
@@ -201,5 +201,31 @@ class MassSpecAcquisition(db.Model):
 
     sample = db.relationship(
         "MassSpecSample",
-        backref=db.backref("files", order_by="desc(MassSpecAcquisition.date), MassSpecAcquisition.filename"),
+        backref=db.backref("acquired_files", order_by="desc(AcquiredFile.file_date), AcquiredFile.filename"),
+    )
+
+
+class QueuedFile(db.Model):
+    __tablename__ = "queued_file"
+
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    project_code = db.Column(db.Text, nullable=True)
+    experiment_code = db.Column(db.Text, nullable=True)
+    sample_code = db.Column(db.Text, nullable=True)
+    instrument_initial = db.Column(db.Text)
+    user_initials = db.Column(db.Text)
+    date_queued = db.Column(db.Date)
+    daily_counter = db.Column(db.Integer)
+    postfix = db.Column(db.Text)
+
+    __table_args__ = (
+        db.ForeignKeyConstraint(
+            ["project_code", "experiment_code", "sample_code"],
+            ["mass_spec_sample.project_code", "mass_spec_sample.experiment_code", "mass_spec_sample.code"],
+        ),
+    )
+
+    sample = db.relationship(
+        "MassSpecSample",
+        backref=db.backref("queued_files", order_by="desc(QueuedFile.date_queued)"),
     )

@@ -176,12 +176,12 @@ class MassSpecSampleForm(FlaskForm):
             raise ValidationError('Required for crosslinked samples — enter a real unit.')
 
 
-class MassSpecAcquisitionForm(FlaskForm):
+class AcquiredFileForm(FlaskForm):
     location = StringField("Location", validators=[Optional()])
     filename = StringField("Filename", validators=[Optional()])
     size_bytes = FloatField("Size (GB)", validators=[Optional()])
     instrument_initial = StringField("Instrument Initial", validators=[Optional()])
-    date = StringField("Date", validators=[Optional()])
+    file_date = StringField("Date", validators=[Optional()])
     user_initials = StringField("User Initials", validators=[Optional()])
     scan_count = IntegerField("Scan Count", validators=[Optional()])
     meta_json = TextAreaField("Meta (JSON)", validators=[Optional()])
@@ -199,7 +199,7 @@ def _optional_str(value):
     return str(value)
 
 
-class MassSpecAcquisitionEditForm(FlaskForm):
+class AcquiredFileEditForm(FlaskForm):
     # validate_choice=False: the experiment/sample option lists are populated
     # client-side from an embedded tree, so any code present in the DB is valid.
     project_code = SelectField(

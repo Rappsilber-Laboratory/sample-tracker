@@ -16,7 +16,7 @@
   <tbody>
     {% for experiment in experiments %}
     {% set ns = namespace(file_count=0) %}
-    {% for sample in experiment.samples %}{% set ns.file_count = ns.file_count + (sample.files | length) %}{% endfor %}
+    {% for sample in experiment.samples %}{% set ns.file_count = ns.file_count + (sample.acquired_files | length) %}{% endfor %}
     <tr>
       <td>{{ experiment.code }}</td>
       <td><a href="{{ url_for('experiment_detail', project_code=experiment.project_code, code=experiment.code) }}">{{ experiment.name }}</a></td>
@@ -61,7 +61,7 @@
       {% if show_project %}<td><a href="{{ url_for('project_detail', code=sample.experiment.project_code) }}">{{ sample.experiment.project.name }}</a></td>{% endif %}
       {% if show_experiment %}<td><a href="{{ url_for('experiment_detail', project_code=sample.project_code, code=sample.experiment_code) }}">{{ sample.experiment.name }}</a></td>{% endif %}
       <td>{% if sample.crosslinked_sample is none %}—{% elif sample.crosslinked_sample %}Crosslinked{% else %}Identification{% endif %}</td>
-      <td>{{ sample.files | length or '' }}</td>
+      <td>{{ sample.acquired_files | length or '' }}</td>
       <td>{{ users.get(sample.user_initials, sample.user_initials) if sample.user_initials else '—' }}</td>
       {# <td><a href="{{ url_for('sample_edit', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">Edit</a></td> #}
     </tr>
@@ -106,7 +106,7 @@
   <tbody>
     {% for f in files %}
     <tr>
-      <td>{{ f.date or '' }}</td>
+      <td>{{ f.file_date or '' }}</td>
       <td><a href="{{ url_for('file_detail', id=f.id) }}">{% if f.sample %}{{ highlight_codes(f.filename or f.id|string, f.sample.experiment.project.code, f.sample.experiment.code, f.sample.code) }}{% else %}{{ f.filename or f.id }}{% endif %}</a></td>
       <td>{{ f.location or '' }}</td>
       <td>{% if f.sample %}<a href="{{ url_for('project_detail', code=f.sample.experiment.project_code) }}">{{ f.sample.experiment.project.name }}</a>{% else %}—{% endif %}</td>
