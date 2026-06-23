@@ -208,14 +208,15 @@ class AcquiredFile(db.Model):
 class QueuedFile(db.Model):
     __tablename__ = "queued_file"
 
-    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    # Composite PK: a queued file is a slot in one instrument's run order for a
+    # given day. daily_counter is that order (incl. BLANK-AND-CLEANING runs).
+    instrument_initial = db.Column(db.Text, primary_key=True, nullable=False)
+    date_queued = db.Column(db.Date, primary_key=True, nullable=False)
+    daily_counter = db.Column(db.Integer, primary_key=True, nullable=False)
     project_code = db.Column(db.Text, nullable=True)
     experiment_code = db.Column(db.Text, nullable=True)
     sample_code = db.Column(db.Text, nullable=True)
-    instrument_initial = db.Column(db.Text)
     user_initials = db.Column(db.Text)
-    date_queued = db.Column(db.Date)
-    daily_counter = db.Column(db.Integer)
     postfix = db.Column(db.Text)
 
     __table_args__ = (

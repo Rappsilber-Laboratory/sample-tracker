@@ -3,7 +3,7 @@ import io
 import os
 import re
 import sqlite3
-from datetime import datetime
+from datetime import date, datetime
 
 import click
 from collections import defaultdict
@@ -11,6 +11,7 @@ from collections import defaultdict
 from flask import Flask, Response, abort, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import event, func
 from sqlalchemy.engine import Engine
+from sqlalchemy.exc import IntegrityError
 from flask_wtf import CSRFProtect
 from sqlalchemy.orm import joinedload
 
@@ -34,6 +35,7 @@ from models import (
     IdentificationSample,
     MassSpecSample,
     Project,
+    QueuedFile,
     Species,
     User,
     Virus,
@@ -47,10 +49,13 @@ CSRFProtect(app)
 
 
 @event.listens_for(Engine, "connect")
-def _enable_sqlite_foreign_keys(dbapi_connection, connection_record):
+def _configure_sqlite_connection(dbapi_connection, connection_record):
     if isinstance(dbapi_connection, sqlite3.Connection):
         cur = dbapi_connection.cursor()
         cur.execute("PRAGMA foreign_keys=ON")
+        # Make concurrent writers wait for the lock rather than immediately
+        # failing with "database is locked".
+        cur.execute("PRAGMA busy_timeout=5000")
         cur.close()
 
 
@@ -83,6 +88,32 @@ def _next_sample_code(project_code, experiment_code):
         project_code=project_code, experiment_code=experiment_code
     ).count() + 1
     return f"S{n:02d}"
+
+
+def _commit_unique(form, field_name, what):
+    """Commit a pending insert, turning a duplicate-key clash into a form error.
+
+    Codes are (part of) the primary key, so re-submitting an existing one — e.g.
+    hitting Save again after navigating back — raises an IntegrityError that would
+    otherwise surface as a 500. We catch the duplicate, roll back, and report it
+    inline on the offending field. Returns True if committed, False if it was a
+    duplicate (in which case the caller should re-render the form). Any other
+    IntegrityError is genuinely unexpected and is re-raised.
+    """
+    try:
+        db.session.commit()
+        return True
+    except IntegrityError as exc:
+        db.session.rollback()
+        if "UNIQUE constraint failed" not in str(getattr(exc, "orig", exc)):
+            raise
+        field = getattr(form, field_name, None)
+        value = field.data if field is not None else ""
+        message = f"{what} “{value}” already exists — please choose a different one."
+        if field is not None:
+            field.errors.append(message)
+        flash(message, "error")
+        return False
 
 
 def _split_token(token):
@@ -295,9 +326,9 @@ def project_create():
         project = Project()
         form.populate_obj(project)
         db.session.add(project)
-        db.session.commit()
-        flash("Project created.", "success")
-        return redirect(url_for("project_detail", code=project.code))
+        if _commit_unique(form, "code", "A project with code"):
+            flash("Project created.", "success")
+            return redirect(url_for("project_detail", code=project.code))
     return render_template("project/form.html", form=form, project=None)
 
 
@@ -384,9 +415,9 @@ def experiment_create(project_code):
         form.populate_obj(experiment)
         experiment.project_code = project_code
         db.session.add(experiment)
-        db.session.commit()
-        flash("Experiment created.", "success")
-        return redirect(url_for("experiment_detail", project_code=experiment.project_code, code=experiment.code))
+        if _commit_unique(form, "code", "An experiment with code"):
+            flash("Experiment created.", "success")
+            return redirect(url_for("experiment_detail", project_code=experiment.project_code, code=experiment.code))
     cancel_url = url_for("project_detail", code=project_code)
     return render_template(
         "experiment/form.html", form=form, experiment=None, samples=[],
@@ -485,9 +516,9 @@ def cell_line_create():
         form.populate_obj(cl)
         db.session.add(cl)
         cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
-        db.session.commit()
-        flash("Cell line created.", "success")
-        return redirect(url_for("cell_line_detail", cellosaurus_id=cl.cellosaurus_id))
+        if _commit_unique(form, "cellosaurus_id", "A cell line with Cellosaurus ID"):
+            flash("Cell line created.", "success")
+            return redirect(url_for("cell_line_detail", cellosaurus_id=cl.cellosaurus_id))
     return render_template("cell_line/form.html", form=form, cell_line=None)
 
 
@@ -579,9 +610,9 @@ def user_create():
         user = User()
         form.populate_obj(user)
         db.session.add(user)
-        db.session.commit()
-        flash("User created.", "success")
-        return redirect(url_for("user_detail", initials=user.initials))
+        if _commit_unique(form, "initials", "A user with initials"):
+            flash("User created.", "success")
+            return redirect(url_for("user_detail", initials=user.initials))
     return render_template("user/form.html", form=form, user=None)
 
 
@@ -735,9 +766,9 @@ def sample_create(project_code, experiment_code):
         sample.cell_lines = CellLine.query.filter(
             CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
         ).all()
-        db.session.commit()
-        flash("Sample created.", "success")
-        return redirect(url_for("sample_detail", project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code))
+        if _commit_unique(form, "code", "A sample with code"):
+            flash("Sample created.", "success")
+            return redirect(url_for("sample_detail", project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code))
     cancel_url = url_for("experiment_detail", project_code=project_code, code=experiment_code)
     return render_template(
         "sample/form.html", form=form, sample=None, experiment=experiment,
@@ -758,59 +789,227 @@ def sample_detail(project_code, experiment_code, code):
     )
 
 
-def build_batch_csv(names, day, project_code, experiment_code, sample_code, sample_name):
-    """Build a Thermo Xcalibur sequence CSV for the given file names.
+# ---------------------------------------------------------------------------
+# Queue (queued_file)
+# ---------------------------------------------------------------------------
+def queued_filename(qf):
+    """Build the run filename for a QueuedFile row.
 
-    Xcalibur sequence files are plain Windows-ANSI (cp1252) text, not UTF-7 —
-    so codes, the data path, etc. are written literally. cp1252 keeps all ASCII
-    as-is and still handles the occasional µ/°/etc. in a sample name; anything it
-    can't represent is replaced rather than crashing the export.
+    Sample run: {inst}_{YYYYMMDD}-{NN}_{proj}_{user}_{exp}_{samp}_{postfix}
+    Blank run:  {inst}_{YYYYMMDD}-{NN}_BLANK-AND-CLEANING
+    NN = daily_counter (the per-day, per-instrument run order) padded to 2 digits.
+    """
+    head = f"{qf.instrument_initial}_{qf.date_queued:%Y%m%d}-{qf.daily_counter:02d}"
+    if qf.sample_code:
+        parts = [head, qf.project_code, qf.user_initials,
+                 qf.experiment_code, qf.sample_code, qf.postfix]
+        return "_".join(p for p in parts if p)
+    # Blank / cleaning run — postfix carries the label.
+    return f"{head}_{qf.postfix or 'BLANK-AND-CLEANING'}"
+
+
+def _parse_queue_date(date_str):
+    try:
+        return datetime.strptime(date_str, "%Y%m%d").date()
+    except (ValueError, TypeError):
+        abort(400, "date must be YYYYMMDD")
+
+
+def _next_daily_counter(instrument, day):
+    """Next run-order slot for an instrument on a day (append to the end)."""
+    current_max = (
+        db.session.query(func.max(QueuedFile.daily_counter))
+        .filter_by(instrument_initial=instrument, date_queued=day)
+        .scalar()
+    )
+    return (current_max or 0) + 1
+
+
+def _append_to_queue(instrument, day, build_rows, attempts=5):
+    """Append rows to an instrument's day queue, race-safe.
+
+    ``build_rows(start)`` returns the ``QueuedFile`` rows to insert, numbered from
+    the first free ``daily_counter``. Two concurrent requests can read the same
+    max counter and pick the same slot; the loser's commit then violates the
+    composite PK. We catch that, roll back, recompute the next free slot, and
+    retry the whole (re-numbered) batch — each attempt commits atomically, so
+    there are never partial inserts.
+    """
+    for _ in range(attempts):
+        rows = build_rows(_next_daily_counter(instrument, day))
+        db.session.add_all(rows)
+        try:
+            db.session.commit()
+            return rows
+        except IntegrityError:
+            db.session.rollback()
+    abort(409, "Could not assign a queue slot — please retry.")
+
+
+def _day_queue_json(day):
+    """Snapshot of the queue for one day: tab list + rows grouped by instrument."""
+    instruments = [
+        r[0] for r in db.session.query(QueuedFile.instrument_initial)
+        .distinct().order_by(QueuedFile.instrument_initial).all()
+    ]
+    rows = (
+        QueuedFile.query.options(joinedload(QueuedFile.sample))
+        .filter_by(date_queued=day)
+        .order_by(QueuedFile.instrument_initial, QueuedFile.daily_counter)
+        .all()
+    )
+    queues = defaultdict(list)
+    for qf in rows:
+        queues[qf.instrument_initial].append({
+            "daily_counter": qf.daily_counter,
+            "filename": queued_filename(qf),
+            "postfix": qf.postfix,
+            "user_initials": qf.user_initials,
+            "project_code": qf.project_code,
+            "experiment_code": qf.experiment_code,
+            "sample_code": qf.sample_code,
+            "sample_url": (
+                url_for("sample_detail", project_code=qf.project_code,
+                        experiment_code=qf.experiment_code, code=qf.sample_code)
+                if qf.sample_code else None
+            ),
+            "is_blank": not qf.sample_code,
+        })
+    return {"date": day.isoformat(), "instruments": instruments, "queues": dict(queues)}
+
+
+def build_day_csv(rows, day):
+    """Build a Thermo Xcalibur sequence CSV for one instrument's ordered day queue.
+
+    Xcalibur sequence files are plain Windows-ANSI (cp1252) text, not UTF-7 — so
+    codes, the data path, etc. are written literally. One row per queued run, in
+    daily_counter order; blanks get a BLANK-AND-CLEANING comment. cp1252 keeps all
+    ASCII as-is and still handles the occasional µ/°/etc. in a sample name;
+    anything it can't represent is replaced rather than crashing the export.
     """
     path = f"D:\\Data\\{day:%Y}\\{day:%y}{day:%m}\\{day:%y%m%d}"
-    comment = f"{project_code}_{experiment_code}_{sample_code} - {sample_name}"
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow(["Bracket Type=4", "", "", "", "", ""])
     writer.writerow(["File Name", "Path", "Instrument Method", "Position", "Inj Vol", "Comment"])
-    for name in names:
-        writer.writerow([name, path, "", "", "", comment])
+    for qf in rows:
+        if qf.sample_code:
+            sample_name = qf.sample.name if qf.sample else ""
+            comment = f"{qf.project_code}_{qf.experiment_code}_{qf.sample_code} - {sample_name}"
+        else:
+            comment = "BLANK-AND-CLEANING"
+        writer.writerow([queued_filename(qf), path, "", "", "", comment])
     return buf.getvalue().encode("cp1252", errors="replace")
 
 
-def _batch_payload(project_code, experiment_code, code):
-    """Validate a batch POST and return (sample, names, instrument, user, day).
-
-    Aborts with 400 if the payload is missing fields or malformed.
-    """
-    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
-    data = request.get_json(silent=True) or {}
-    names = data.get("names")
-    inst = (data.get("instrument_initial") or "").strip()
-    user = (data.get("user_initials") or "").strip()
-    date_str = (data.get("date") or "").strip()
-    if not isinstance(names, list) or not names or not all(isinstance(n, str) and n for n in names):
-        abort(400, "names must be a non-empty list of strings")
-    if not inst or not user:
-        abort(400, "instrument_initial and user_initials are required")
-    try:
-        day = datetime.strptime(date_str, "%Y%m%d").date()
-    except ValueError:
-        abort(400, "date must be YYYYMMDD")
-    return sample, names, inst, user, day
-
-
 @app.route(
-    "/projects/<project_code>/experiments/<experiment_code>/samples/<code>/batch/csv",
+    "/projects/<project_code>/experiments/<experiment_code>/samples/<code>/queue",
     methods=["POST"],
 )
-def sample_batch_csv(project_code, experiment_code, code):
-    sample, names, _inst, _user, day = _batch_payload(project_code, experiment_code, code)
-    csv_bytes = build_batch_csv(
-        names, day, project_code, experiment_code, code, sample.name
+def sample_queue(project_code, experiment_code, code):
+    """Append a batch of runs for one sample to an instrument's day queue."""
+    db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
+    data = request.get_json(silent=True) or {}
+    inst = (data.get("instrument_initial") or "").strip()
+    user = (data.get("user_initials") or "").strip()
+    day = _parse_queue_date((data.get("date") or "").strip())
+    try:
+        count = int(data.get("count"))
+    except (TypeError, ValueError):
+        abort(400, "count must be an integer")
+    if not inst or not user:
+        abort(400, "instrument_initial and user_initials are required")
+    if count < 1:
+        abort(400, "count must be >= 1")
+
+    _append_to_queue(inst, day, lambda start: [
+        QueuedFile(
+            instrument_initial=inst,
+            date_queued=day,
+            daily_counter=start + i,
+            project_code=project_code,
+            experiment_code=experiment_code,
+            sample_code=code,
+            user_initials=user,
+            postfix=f"f{i + 1:02d}",
+        )
+        for i in range(count)
+    ])
+    return jsonify(_day_queue_json(day))
+
+
+@app.route("/api/queue")
+def api_queue():
+    date_str = (request.args.get("date") or "").strip()
+    day = _parse_queue_date(date_str) if date_str else date.today()
+    return jsonify(_day_queue_json(day))
+
+
+@app.route("/api/queue/blank", methods=["POST"])
+def api_queue_blank():
+    data = request.get_json(silent=True) or {}
+    inst = (data.get("instrument_initial") or "").strip()
+    user = (data.get("user_initials") or "").strip() or None
+    day = _parse_queue_date((data.get("date") or "").strip())
+    if not inst:
+        abort(400, "instrument_initial is required")
+    _append_to_queue(inst, day, lambda start: [QueuedFile(
+        instrument_initial=inst,
+        date_queued=day,
+        daily_counter=start,
+        user_initials=user,
+        postfix="BLANK-AND-CLEANING",
+    )])
+    return jsonify(_day_queue_json(day))
+
+
+def _queue_row_or_404(data):
+    inst = (data.get("instrument_initial") or "").strip()
+    day = _parse_queue_date((data.get("date") or "").strip())
+    try:
+        counter = int(data.get("daily_counter"))
+    except (TypeError, ValueError):
+        abort(400, "daily_counter must be an integer")
+    qf = db.session.get(QueuedFile, (inst, day, counter))
+    if qf is None:
+        abort(404)
+    return qf, day
+
+
+@app.route("/api/queue/update", methods=["POST"])
+def api_queue_update():
+    data = request.get_json(silent=True) or {}
+    qf, day = _queue_row_or_404(data)
+    qf.postfix = (data.get("postfix") or "").strip() or None
+    db.session.commit()
+    return jsonify(_day_queue_json(day))
+
+
+@app.route("/api/queue/delete", methods=["POST"])
+def api_queue_delete():
+    data = request.get_json(silent=True) or {}
+    qf, day = _queue_row_or_404(data)
+    db.session.delete(qf)
+    db.session.commit()
+    return jsonify(_day_queue_json(day))
+
+
+@app.route("/api/queue/csv")
+def api_queue_csv():
+    inst = (request.args.get("instrument") or "").strip()
+    day = _parse_queue_date((request.args.get("date") or "").strip())
+    if not inst:
+        abort(400, "instrument is required")
+    rows = (
+        QueuedFile.query.options(joinedload(QueuedFile.sample))
+        .filter_by(instrument_initial=inst, date_queued=day)
+        .order_by(QueuedFile.daily_counter)
+        .all()
     )
+    csv_bytes = build_day_csv(rows, day)
     resp = Response(csv_bytes, mimetype="text/csv")
     resp.headers["Content-Disposition"] = (
-        f'attachment; filename="{project_code}_{experiment_code}_{code}_queue.csv"'
+        f'attachment; filename="{inst}_{day:%Y%m%d}_sequence.csv"'
     )
     return resp
 

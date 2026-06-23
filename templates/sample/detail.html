@@ -19,10 +19,7 @@
 {% if sample.description %}<p>{{ sample.description }}</p>{% endif %}
 
 <section class="new-batch"
-         data-project-code="{{ sample.experiment.project.code or '' }}"
-         data-experiment-code="{{ sample.experiment.code or '' }}"
-         data-sample-code="{{ sample.code or '' }}"
-         data-csv-url="{{ url_for('sample_batch_csv', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">
+         data-queue-url="{{ url_for('sample_queue', project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code) }}">
   <h3>New Batch</h3>
   <p>
     <label>Instrument Initial <input type="text" id="batch-instrument" required></label>
@@ -35,7 +32,13 @@
       </select>
     </label>
     <label>Number of Acquisitions <input type="number" id="batch-count" min="1" step="1" value="1" required></label>
-    <button type="button" id="batch-generate">Generate</button>
+  </p>
+  <p class="batch-date-controls">
+    Date:
+    <button type="button" data-batch-day="today">Today</button>
+    <button type="button" data-batch-day="tomorrow">Tomorrow</button>
+    <input type="date" id="batch-date">
+    <button type="button" id="batch-generate">Add to Queue</button>
   </p>
   <p id="batch-message" role="status"></p>
 </section>
@@ -150,70 +153,49 @@
 <script>
   (function () {
     const section = document.querySelector('.new-batch');
+    if (!section) return;
     const button = document.getElementById('batch-generate');
     const message = document.getElementById('batch-message');
+    const dateInput = document.getElementById('batch-date');
     const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
-    function filenameFromDisposition(header, fallback) {
-      const match = header && /filename="?([^"]+)"?/.exec(header);
-      return match ? match[1] : fallback;
-    }
+    const pad = (n) => String(n).padStart(2, '0');
+    const toInputValue = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    if (!dateInput.value) dateInput.value = toInputValue(new Date());
 
-    function post(url, payload) {
-      return fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
-        body: JSON.stringify(payload),
+    document.querySelectorAll('[data-batch-day]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const d = new Date();
+        if (btn.dataset.batchDay === 'tomorrow') d.setDate(d.getDate() + 1);
+        dateInput.value = toInputValue(d);
       });
-    }
+    });
 
     button.addEventListener('click', async function () {
       const inst = document.getElementById('batch-instrument').value.trim();
       const user = document.getElementById('batch-user').value;
       const count = parseInt(document.getElementById('batch-count').value, 10);
-      const proj = section.dataset.projectCode;
-      const exp = section.dataset.experimentCode;
-      const samp = section.dataset.sampleCode;
+      const date = (dateInput.value || '').replaceAll('-', '');
 
-      if (!inst || !user || !Number.isInteger(count) || count < 1) {
+      if (!inst || !user || !Number.isInteger(count) || count < 1 || !date) {
         message.textContent = 'Please fill in all fields (acquisitions must be a whole number ≥ 1).';
         return;
       }
 
-      const now = new Date();
-      const date = now.getFullYear().toString()
-        + String(now.getMonth() + 1).padStart(2, '0')
-        + String(now.getDate()).padStart(2, '0');
-
-      const names = [];
-      for (let i = 1; i <= count; i++) {
-        const n = String(i).padStart(2, '0');
-        names.push(`${inst}_${date}_${proj}_${user}_${exp}_${samp}_${n}`);
-      }
-
-      const payload = { names: names, instrument_initial: inst, user_initials: user, date: date };
-
-      message.textContent = 'Generating sequence file…';
+      message.textContent = 'Adding to queue…';
       button.disabled = true;
       try {
-        // Download the Xcalibur CSV (no DB write).
-        const csvResp = await post(section.dataset.csvUrl, payload);
-        if (!csvResp.ok) {
-          message.textContent = 'Could not generate the CSV (server error).';
+        const resp = await fetch(section.dataset.queueUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken },
+          body: JSON.stringify({ instrument_initial: inst, user_initials: user, date: date, count: count }),
+        });
+        if (!resp.ok) {
+          message.textContent = 'Could not add to queue (server error).';
           return;
         }
-        const blob = await csvResp.blob();
-        const filename = filenameFromDisposition(
-          csvResp.headers.get('Content-Disposition'), `${proj}_${exp}_${samp}_queue.csv`);
-        const objectUrl = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = objectUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        URL.revokeObjectURL(objectUrl);
-        message.textContent = 'CSV downloaded.';
+        message.textContent = `Added ${count} run${count === 1 ? '' : 's'} to ${inst} on ${date}.`;
+        if (window.queuePanel) window.queuePanel.show(date, inst);
       } finally {
         button.disabled = false;
       }

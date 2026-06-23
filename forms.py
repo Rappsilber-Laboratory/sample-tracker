@@ -69,31 +69,31 @@ class MassSpecSampleForm(FlaskForm):
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", coerce=str, validators=[DataRequired()])
-    disease = StringField("Disease", default="N/A", validators=[Optional()])
-    phenotype = StringField("Phenotype", default="N/A", validators=[Optional()])
+    disease = StringField("Disease", validators=[Optional()])
+    phenotype = StringField("Phenotype", validators=[Optional()])
     isotope_labeling_channel = StringField(
-        "Isotope Labeling Channel", default="N/A", validators=[Optional()]
+        "Isotope Labeling Channel", validators=[Optional()]
     )
-    chemical_labelling = StringField("Chemical Labelling", default="N/A", validators=[Optional()])
-    tissue = StringField("Tissue", default="N/A", validators=[Optional()])
+    chemical_labelling = StringField("Chemical Labelling", validators=[Optional()])
+    tissue = StringField("Tissue", validators=[Optional()])
     organism_age = FloatField("Organism Age", validators=[Optional()])
-    organism_age_unit = StringField("Organism Age Unit", default="N/A", validators=[Optional()])
-    organism_sex = StringField("Organism Sex", default="N/A", validators=[Optional()])
-    enrichment_process = StringField("Enrichment Process", default="N/A", validators=[Optional()])
-    replicate = StringField("Replicate", default="N/A", validators=[Optional()])
+    organism_age_unit = StringField("Organism Age Unit", validators=[Optional()])
+    organism_sex = StringField("Organism Sex", validators=[Optional()])
+    enrichment_process = StringField("Enrichment Process", validators=[Optional()])
+    replicate = StringField("Replicate", validators=[Optional()])
     synthetic_peptide = SelectField(
         "Synthetic Peptide",
         default="no",
         choices=[("", ""), ("yes", "Yes"), ("no", "No"), ("spiked in", "Spiked In")],
         validators=[Optional()],
     )
-    digestion = StringField("Digestion", default="N/A", validators=[Optional()])
+    digestion = StringField("Digestion", validators=[Optional()])
     protein_isolation_or_fractionation = StringField(
-        "Protein Isolation / Fractionation", default="N/A", validators=[Optional()]
+        "Protein Isolation / Fractionation", validators=[Optional()]
     )
     crosslinked_sample = BooleanField("Crosslinked Sample", default=False)
     quantitation = BooleanField("Quantitation", default=False)
-    quantitation_scheme = StringField("Quantitation Scheme", default="N/A", validators=[Optional()])
+    quantitation_scheme = StringField("Quantitation Scheme", validators=[Optional()])
     quantitation_method = SelectField(
         "Quantitation Method",
         default="",
@@ -143,8 +143,8 @@ class MassSpecSampleForm(FlaskForm):
     reaction_time_in_minutes = FloatField(
         "Reaction Time (min)", validators=[Optional()]
     )
-    quenching_reagent = StringField("Quenching Reagent", default="N/A", validators=[Optional()])
-    uv_source = StringField("UV Source", default="N/A", validators=[Optional()])
+    quenching_reagent = StringField("Quenching Reagent", validators=[Optional()])
+    uv_source = StringField("UV Source", validators=[Optional()])
     uv_time_in_seconds = FloatField("UV Time (s)", validators=[Optional()])
     uv_wavelength_in_nanometers = FloatField(
         "UV Wavelength (nm)", validators=[Optional()]
@@ -152,7 +152,7 @@ class MassSpecSampleForm(FlaskForm):
 
     # Identification fields
     peptide_level_fraction = StringField(
-        "Peptide Level Fraction", default="N/A", validators=[Optional()]
+        "Peptide Level Fraction", validators=[Optional()]
     )
 
     # Many-to-many

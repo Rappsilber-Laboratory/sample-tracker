@@ -139,15 +139,15 @@ CREATE TABLE acquired_file (
 );
 
 CREATE TABLE queued_file (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    instrument_initial TEXT NOT NULL,
+    date_queued DATE NOT NULL,
+    daily_counter INTEGER NOT NULL,
     project_code TEXT,
     experiment_code TEXT,
     sample_code TEXT,
-    instrument_initial TEXT,
     user_initials TEXT,
-    date_queued DATE,
-    daily_counter INTEGER,
     postfix TEXT,
+    PRIMARY KEY (instrument_initial, date_queued, daily_counter),
     FOREIGN KEY (project_code, experiment_code, sample_code)
         REFERENCES mass_spec_sample(project_code, experiment_code, code)
 );

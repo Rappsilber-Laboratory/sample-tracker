@@ -109,3 +109,70 @@ details > fieldset {
 .hl-project    { background-color: #fde2a7; color: #5a3a00; padding: 0 2px; border-radius: 2px; }
 .hl-experiment { background-color: #c6e7c2; color: #1f4d1a; padding: 0 2px; border-radius: 2px; }
 .hl-sample     { background-color: #c8dafc; color: #0d3a8a; padding: 0 2px; border-radius: 2px; }
+
+/* ---- Queued Files panel (pinned below <main> on every page) ---- */
+.queue-panel {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  border-top: 2px solid var(--border);
+  background: var(--bg);
+}
+.queue-resize {
+  height: 6px;
+  cursor: ns-resize;
+  background: var(--accent-bg);
+  border-bottom: 1px solid var(--border);
+  touch-action: none;
+}
+.queue-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.3rem 1rem;
+}
+.queue-toggle {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-weight: bold;
+  cursor: pointer;
+  padding: 0.2rem 0;
+}
+.queue-date-controls,
+.queue-actions { display: flex; align-items: center; gap: 0.4rem; }
+.queue-actions { margin-left: auto; }
+.queue-panel input[type="date"],
+.queue-panel button { font-size: 0.85rem; }
+.queue-tabs {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0 1rem;
+  flex-wrap: wrap;
+}
+.queue-tab {
+  border: 1px solid var(--border);
+  border-bottom: none;
+  background: var(--accent-bg);
+  padding: 0.15rem 0.6rem;
+  cursor: pointer;
+  border-radius: 4px 4px 0 0;
+}
+.queue-tab.active { background: var(--accent); color: var(--accent-text); }
+.queue-body {
+  height: var(--queue-body-height, 180px);
+  overflow: auto;
+  padding: 0 1rem 0.5rem;
+}
+.queue-body table { width: 100%; margin: 0; }
+.queue-panel.collapsed .queue-resize,
+.queue-panel.collapsed .queue-tabs,
+.queue-panel.collapsed .queue-body { display: none; }
+.queue-blank-row td { color: var(--text-light); font-style: italic; }
+.queue-postfix-input { width: 8rem; }
+.queue-del {
+  background: none; border: none; color: var(--code);
+  cursor: pointer; font-weight: bold; font-size: 1.1em; line-height: 1;
+}
+.queue-empty { color: var(--text-light); padding: 0.5rem 0; }

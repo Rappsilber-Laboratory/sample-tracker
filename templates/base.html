@@ -34,6 +34,27 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
+
+  <aside id="queue-panel" class="queue-panel" aria-label="Queued files">
+    <div id="queue-resize" class="queue-resize" title="Drag to resize"></div>
+    <div class="queue-header">
+      <button type="button" id="queue-toggle" class="queue-toggle" aria-expanded="true">▼ Queued Files</button>
+      <span class="queue-date-controls">
+        Date:
+        <button type="button" data-queue-day="today">Today</button>
+        <button type="button" data-queue-day="tomorrow">Tomorrow</button>
+        <input type="date" id="queue-date">
+      </span>
+      <span class="queue-actions">
+        <button type="button" id="queue-add-blank">+ BLANK-AND-CLEANING</button>
+        <button type="button" id="queue-export">Export sequence CSV</button>
+      </span>
+    </div>
+    <div id="queue-tabs" class="queue-tabs"></div>
+    <div id="queue-body" class="queue-body"></div>
+  </aside>
+
   {% block scripts %}{% endblock %}
+  <script src="{{ url_for('static', filename='js/queue-panel.js') }}" defer></script>
 </body>
 </html>
