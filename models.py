@@ -218,6 +218,23 @@ class QueuedFile(db.Model):
     sample_code = db.Column(db.Text, nullable=True)
     user_initials = db.Column(db.Text)
     postfix = db.Column(db.Text)
+    # Clearing the queue sets this rather than deleting the row, so the run stays
+    # hidden from the panel but still counts toward the daily_counter sequence.
+    exported = db.Column(db.Boolean, nullable=False, default=False, server_default="0")
+    # DB-generated: the run filename up to (and including the '_' before) the
+    # editable postfix, so file_name_root + postfix is the full filename.
+    # Read-only — kept in sync with the GENERATED column in schema.sql.
+    file_name_root = db.Column(
+        db.Text,
+        db.Computed(
+            "instrument_initial || '_' || replace(date_queued, '-', '') || '-' || printf('%02d', daily_counter)"
+            " || CASE WHEN nullif(sample_code, '') IS NOT NULL"
+            " THEN '_' || concat_ws('_', nullif(project_code, ''), nullif(user_initials, ''),"
+            " nullif(experiment_code, ''), nullif(sample_code, '')) ELSE '' END"
+            " || '_'",
+            persisted=False,
+        ),
+    )
 
     __table_args__ = (
         db.ForeignKeyConstraint(

@@ -798,14 +798,15 @@ def queued_filename(qf):
     Sample run: {inst}_{YYYYMMDD}-{NN}_{proj}_{user}_{exp}_{samp}_{postfix}
     Blank run:  {inst}_{YYYYMMDD}-{NN}_BLANK-AND-CLEANING
     NN = daily_counter (the per-day, per-instrument run order) padded to 2 digits.
+
+    file_name_root is the DB-generated part up to and including the '_' before the
+    postfix, so the full filename is just root + postfix.
     """
-    head = f"{qf.instrument_initial}_{qf.date_queued:%Y%m%d}-{qf.daily_counter:02d}"
+    root = qf.file_name_root  # ends with the '_' separator before the postfix
     if qf.sample_code:
-        parts = [head, qf.project_code, qf.user_initials,
-                 qf.experiment_code, qf.sample_code, qf.postfix]
-        return "_".join(p for p in parts if p)
+        return f"{root}{qf.postfix}" if qf.postfix else root[:-1]
     # Blank / cleaning run — postfix carries the label.
-    return f"{head}_{qf.postfix or 'BLANK-AND-CLEANING'}"
+    return f"{root}{qf.postfix or 'BLANK-AND-CLEANING'}"
 
 
 def _parse_queue_date(date_str):
@@ -816,7 +817,12 @@ def _parse_queue_date(date_str):
 
 
 def _next_daily_counter(instrument, day):
-    """Next run-order slot for an instrument on a day (append to the end)."""
+    """Next run-order slot for an instrument on a day (append to the end).
+
+    Counts *all* rows for the day, including exported ones, on purpose: clearing
+    the queue marks rows exported instead of deleting them, so the counter keeps
+    climbing and never re-uses a run number already burned into an exported CSV.
+    """
     current_max = (
         db.session.query(func.max(QueuedFile.daily_counter))
         .filter_by(instrument_initial=instrument, date_queued=day)
@@ -850,11 +856,12 @@ def _day_queue_json(day):
     """Snapshot of the queue for one day: tab list + rows grouped by instrument."""
     instruments = [
         r[0] for r in db.session.query(QueuedFile.instrument_initial)
+        .filter(QueuedFile.exported.is_(False))
         .distinct().order_by(QueuedFile.instrument_initial).all()
     ]
     rows = (
         QueuedFile.query.options(joinedload(QueuedFile.sample))
-        .filter_by(date_queued=day)
+        .filter_by(date_queued=day, exported=False)
         .order_by(QueuedFile.instrument_initial, QueuedFile.daily_counter)
         .all()
     )
@@ -990,6 +997,22 @@ def api_queue_delete():
     data = request.get_json(silent=True) or {}
     qf, day = _queue_row_or_404(data)
     db.session.delete(qf)
+    db.session.commit()
+    return jsonify(_day_queue_json(day))
+
+
+@app.route("/api/queue/clear", methods=["POST"])
+def api_queue_clear():
+    """Hide an instrument's day queue by marking its runs exported (not deleted),
+    so the daily_counter keeps climbing for any runs re-queued the same day."""
+    data = request.get_json(silent=True) or {}
+    inst = (data.get("instrument_initial") or "").strip()
+    day = _parse_queue_date((data.get("date") or "").strip())
+    if not inst:
+        abort(400, "instrument_initial is required")
+    QueuedFile.query.filter_by(
+        instrument_initial=inst, date_queued=day, exported=False
+    ).update({"exported": True})
     db.session.commit()
     return jsonify(_day_queue_json(day))
 

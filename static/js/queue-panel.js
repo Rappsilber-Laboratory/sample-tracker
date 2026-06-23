@@ -12,6 +12,7 @@
   const bodyEl = document.getElementById('queue-body');
   const addBlankBtn = document.getElementById('queue-add-blank');
   const exportBtn = document.getElementById('queue-export');
+  const clearBtn = document.getElementById('queue-clear');
   const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
 
   let data = { instruments: [], queues: {}, date: '' };
@@ -103,6 +104,7 @@
     const rows = (data.queues && data.queues[activeInstrument]) || [];
     const hasInst = !!activeInstrument;
     exportBtn.disabled = !hasInst || rows.length === 0;
+    clearBtn.disabled = !hasInst || rows.length === 0;
 
     if (!rows.length) {
       bodyEl.innerHTML = `<p class="queue-empty">${
@@ -213,9 +215,27 @@
     post('/api/queue/blank', { instrument_initial: inst, date: currentYmd() });
   });
 
+  function clearQueue(inst) {
+    return post('/api/queue/clear', { instrument_initial: inst, date: currentYmd() });
+  }
+
   exportBtn.addEventListener('click', () => {
     if (!activeInstrument) return;
-    window.location = `/api/queue/csv?instrument=${encodeURIComponent(activeInstrument)}&date=${currentYmd()}`;
+    const inst = activeInstrument;
+    // Trigger the download via a synthetic <a> click (not window.location) so the
+    // blocking confirm() below can't suppress it.
+    const a = document.createElement('a');
+    a.href = `/api/queue/csv?instrument=${encodeURIComponent(inst)}&date=${currentYmd()}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    if (confirm(`Exported. Clear the queue for ${inst}?`)) clearQueue(inst);
+  });
+
+  clearBtn.addEventListener('click', () => {
+    if (!activeInstrument) return;
+    if (!confirm(`Clear the queue for ${activeInstrument}? Exported runs are hidden but kept.`)) return;
+    clearQueue(activeInstrument);
   });
 
   // ---- public API: New Batch calls this after queueing ----

@@ -147,6 +147,15 @@ CREATE TABLE queued_file (
     sample_code TEXT,
     user_initials TEXT,
     postfix TEXT,
+    exported BOOLEAN NOT NULL DEFAULT 0,
+    file_name_root TEXT GENERATED ALWAYS AS (
+        instrument_initial || '_' || replace(date_queued, '-', '') || '-' || printf('%02d', daily_counter)
+        || CASE WHEN nullif(sample_code, '') IS NOT NULL
+                THEN '_' || concat_ws('_', nullif(project_code, ''), nullif(user_initials, ''),
+                                           nullif(experiment_code, ''), nullif(sample_code, ''))
+                ELSE '' END
+        || '_'
+    ) VIRTUAL,
     PRIMARY KEY (instrument_initial, date_queued, daily_counter),
     FOREIGN KEY (project_code, experiment_code, sample_code)
         REFERENCES mass_spec_sample(project_code, experiment_code, code)

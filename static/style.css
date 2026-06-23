@@ -115,6 +115,10 @@ details > fieldset {
   flex: none;
   display: flex;
   flex-direction: column;
+  width: auto;          /* override width:30% inherited from `aside` (simple.css) */
+  float: none;          /* ignored on flex item, reset for clarity */
+  margin: 0;            /* drop margin-inline-start:15px from `aside` */
+  padding: 0;           /* drop padding:0 15px; inner rows handle their own padding */
   border-top: 2px solid var(--border);
   background: var(--bg);
 }
