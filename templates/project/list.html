@@ -29,9 +29,9 @@
       <td>{{ project.code }}</td>
       <td><a href="{{ url_for('project_detail', code=project.code) }}">{{ project.name }}</a></td>
       <td>{{ project.description or '' }}</td>
-      <td>{{ exp_counts[project.code] }}</td>
-      <td>{{ sample_counts[project.code] }}</td>
-      <td>{{ file_counts[project.code] or '' }}</td>
+      <td>{{ exp_counts.get(project.code, 0) }}</td>
+      <td>{{ sample_counts.get(project.code, 0) }}</td>
+      <td>{{ file_counts.get(project.code, 0) or '' }}</td>
       <td>
         <input type="checkbox"
                {% if project.active %}checked{% endif %}

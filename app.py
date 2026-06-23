@@ -135,19 +135,25 @@ def wrap_code_filter(s, code, marker, only_first=False):
 
 @app.context_processor
 def inject_nav_counts():
+    # Runs on every page render, so fold the per-entity counts into a single
+    # SELECT of scalar subqueries rather than one round trip per entity.
+    nav_models = {
+        "projects": Project,
+        "experiments": Experiment,
+        "samples": MassSpecSample,
+        "species": Species,
+        "cell_lines": CellLine,
+        "viruses": Virus,
+        "files": AcquiredFile,
+        "users": User,
+    }
     try:
-        return {
-            "nav_counts": {
-                "projects": db.session.query(Project).count(),
-                "experiments": db.session.query(Experiment).count(),
-                "samples": db.session.query(MassSpecSample).count(),
-                "species": db.session.query(Species).count(),
-                "cell_lines": db.session.query(CellLine).count(),
-                "viruses": db.session.query(Virus).count(),
-                "files": db.session.query(AcquiredFile).count(),
-                "users": db.session.query(User).count(),
-            }
-        }
+        cols = [
+            db.select(func.count()).select_from(model).scalar_subquery().label(key)
+            for key, model in nav_models.items()
+        ]
+        row = db.session.execute(db.select(*cols)).one()
+        return {"nav_counts": dict(row._mapping)}
     except Exception:
         return {"nav_counts": {}}
 
@@ -236,18 +242,22 @@ def project_list():
     else:
         projects = Project.query.filter_by(active=True).order_by(Project.name).all()
     users = {u.initials: u.name for u in User.query.all()}
-    exp_counts = {
-        p.code: Experiment.query.filter_by(project_code=p.code).count()
-        for p in projects
-    }
-    sample_counts = {
-        p.code: MassSpecSample.query.join(Experiment).filter(Experiment.project_code == p.code).count()
-        for p in projects
-    }
-    file_counts = {
-        p.code: AcquiredFile.query.join(MassSpecSample).join(Experiment).filter(Experiment.project_code == p.code).count()
-        for p in projects
-    }
+    # One grouped aggregate per entity instead of a query per project. Samples
+    # and files carry project_code on their own composite key, so neither needs
+    # to join through Experiment. Projects with zero rows are simply absent from
+    # the result (the template defaults missing codes to 0).
+    exp_counts = dict(
+        db.session.query(Experiment.project_code, func.count())
+        .group_by(Experiment.project_code).all()
+    )
+    sample_counts = dict(
+        db.session.query(MassSpecSample.project_code, func.count())
+        .group_by(MassSpecSample.project_code).all()
+    )
+    file_counts = dict(
+        db.session.query(AcquiredFile.project_code, func.count())
+        .group_by(AcquiredFile.project_code).all()
+    )
     return render_template(
         "project/list.html", projects=projects, show_archived=show_archived,
         users=users, exp_counts=exp_counts, sample_counts=sample_counts, file_counts=file_counts
@@ -289,7 +299,7 @@ def project_detail(code):
         .filter(Experiment.project_code == code)
         .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename).all()
     )
-    total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
+    total_size_gb = sum(f.size_bytes or 0 for f in files) / 1e9
     chart_rows = (
         db.session.query(
             AcquiredFile.file_date,
@@ -390,7 +400,7 @@ def experiment_detail(project_code, code):
         .filter(MassSpecSample.project_code == project_code, MassSpecSample.experiment_code == code)
         .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename).all()
     )
-    total_size_gb = sum(f.size_bytes or 0 for f in files) / (1024 ** 3)
+    total_size_gb = sum(f.size_bytes or 0 for f in files) / 1e9
     users = {u.initials: u.name for u in User.query.all()}
     return render_template(
         "experiment/detail.html", experiment=experiment, samples=samples, files=files,
@@ -779,7 +789,7 @@ def sample_create(project_code, experiment_code):
 @app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>")
 def sample_detail(project_code, experiment_code, code):
     sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
-    total_size_gb = sum(f.size_bytes or 0 for f in sample.acquired_files) / (1024 ** 3)
+    total_size_gb = sum(f.size_bytes or 0 for f in sample.acquired_files) / 1e9
     users = {u.initials: u.name for u in User.query.all()}
     active_users = User.query.filter_by(active=True).order_by(User.name).all()
     return render_template(
