@@ -525,7 +525,10 @@ def cell_line_create():
         cl = CellLine()
         form.populate_obj(cl)
         db.session.add(cl)
-        cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
+        # Suppress autoflush so a duplicate Cellosaurus ID surfaces at commit
+        # (handled by _commit_unique) rather than from this query's autoflush.
+        with db.session.no_autoflush:
+            cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         if _commit_unique(form, "cellosaurus_id", "A cell line with Cellosaurus ID"):
             flash("Cell line created.", "success")
             return redirect(url_for("cell_line_detail", cellosaurus_id=cl.cellosaurus_id))
@@ -769,13 +772,18 @@ def sample_create(project_code, experiment_code):
         _coerce_select_fields(sample)
         _nullify_crosslink_fields(sample)
         db.session.add(sample)
-        # Many-to-many (after add to avoid autoflush warning)
-        sample.species_list = Species.query.filter(
-            Species.id.in_(form.species_ids.data)
-        ).all()
-        sample.cell_lines = CellLine.query.filter(
-            CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
-        ).all()
+        # Resolve the many-to-many selections with autoflush suppressed: the
+        # sample is already pending, so an autoflush here would try to INSERT it
+        # mid-query and a duplicate code would raise IntegrityError from the
+        # query (not the commit), escaping _commit_unique below. Deferring the
+        # flush to commit keeps duplicate handling in one place.
+        with db.session.no_autoflush:
+            sample.species_list = Species.query.filter(
+                Species.id.in_(form.species_ids.data)
+            ).all()
+            sample.cell_lines = CellLine.query.filter(
+                CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
+            ).all()
         if _commit_unique(form, "code", "A sample with code"):
             flash("Sample created.", "success")
             return redirect(url_for("sample_detail", project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code))
