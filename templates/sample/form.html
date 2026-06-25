@@ -164,21 +164,36 @@
     const cb = document.getElementById('crosslinked_sample');
     const crosslinkFields = document.getElementById('crosslink-fields');
     const identificationFields = document.getElementById('identification-fields');
+    const setCrosslinkRequired = (required) => {
+      requiredForCrosslink.forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        el.required = required;
+
+        const label = document.querySelector(`label[for="${id}"]`);
+        if (!label) return;
+
+        let marker = label.querySelector('.conditional-required-marker');
+        if (required && !marker) {
+          marker = document.createElement('strong');
+          marker.className = 'conditional-required-marker';
+          marker.textContent = ' *';
+          label.appendChild(marker);
+        } else if (!required && marker) {
+          marker.remove();
+        }
+      });
+    };
+
     if (cb.checked) {
       crosslinkFields.style.display = '';
       crosslinkFields.open = true;
       identificationFields.style.display = 'none';
-      requiredForCrosslink.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.required = true;
-      });
+      setCrosslinkRequired(true);
     } else {
       crosslinkFields.style.display = 'none';
       identificationFields.style.display = '';
-      requiredForCrosslink.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.required = false;
-      });
+      setCrosslinkRequired(false);
     }
   }
   document.getElementById('crosslinked_sample').addEventListener('change', toggleSampleFields);
