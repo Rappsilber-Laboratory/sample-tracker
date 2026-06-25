@@ -10,7 +10,7 @@
 {% endif %}
 <form method="post">
   {{ form.hidden_tag() }}
-  <p>{{ render_field(form.name) }}</p>
+  <p>{{ render_field(form.name, class="field-wide") }}</p>
   {% if user %}
   <p><strong>Initials:</strong> {{ user.initials }}</p>
   {% else %}

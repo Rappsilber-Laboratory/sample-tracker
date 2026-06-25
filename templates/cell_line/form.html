@@ -17,7 +17,7 @@
     <small class="field-warning">⚠ The Cellosaurus ID cannot be changed after creation.</small>
   </p>
   {% endif %}
-  <p>{{ render_field(form.cell_line_name) }}</p>
+  <p>{{ render_field(form.cell_line_name, class="field-wide") }}</p>
   <p>{{ render_field(form.species_id) }}</p>
 {#  <p>{{ render_field(form.virus_ids) }}</p>#}
   <button type="submit">Save</button>

@@ -5,6 +5,16 @@
 <h2>Experiment: {{ experiment.name }}</h2>
 <p>
   <a href="{{ url_for('experiment_edit', project_code=experiment.project_code, code=experiment.code) }}">Edit Experiment</a>
+  {% if file_count == 0 %}
+  <form method="post" style="display:inline"
+        action="{{ url_for('experiment_delete', project_code=experiment.project_code, code=experiment.code) }}"
+        onsubmit="return confirm('Delete this experiment and its {{ sample_count }} sample(s)? This cannot be undone.');">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <button type="submit">Delete Experiment</button>
+  </form>
+  {% else %}
+  <small>(can’t delete — {{ file_count }} acquired file{{ '' if file_count == 1 else 's' }})</small>
+  {% endif %}
 </p>
 
 <p><strong>Project:</strong> <a href="{{ url_for('project_detail', code=experiment.project.code) }}">{{ experiment.project.code }} — {{ experiment.project.name }}</a></p>

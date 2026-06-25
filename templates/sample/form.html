@@ -39,11 +39,46 @@
       <small class="field-warning">⚠ The code cannot be changed after creation.</small>
     </p>
     {% endif %}
-    <p>{{ render_field(form.name) }}</p>
+    <p>{{ render_field(form.name, class="field-wide") }}</p>
     <p>{{ render_field(form.description) }}</p>
     <p>{{ render_field(form.user_initials) }}</p>
     <p>{{ render_field(form.crosslinked_sample) }}</p>
   </fieldset>
+
+  <div id="identification-fields">
+    <fieldset>
+      <p>{{ render_field(form.peptide_level_fraction) }}</p>
+    </fieldset>
+  </div>
+
+  <details>
+    <summary>Species</summary>
+    <fieldset>
+      {{ form.species_ids() }}
+    </fieldset>
+    <small class="field-warning">⚠ Need a species that isn't listed? Save your other changes on this form first, then click "Species" in the navigation to add it, then come back and edit this sample to select it. Clicking "Species" now will lose any unsaved changes here.</small>
+  </details>
+
+  <details>
+    <summary>Cell Lines</summary>
+    <fieldset>
+      {{ form.cellosaurus_ids() }}
+    </fieldset>
+    <small class="field-warning">⚠ Need a cell line that isn't listed? Save your other changes on this form first, then click "Cell Lines" in the navigation to add it, then come back and edit this sample to select it. Clicking "Cell Lines" now will lose any unsaved changes here.</small>
+  </details>
+
+  <details>
+    <summary>Sample Preparation</summary>
+    <fieldset>
+      <p>{{ render_field(form.isotope_labeling_channel) }}</p>
+      <p>{{ render_field(form.chemical_labelling) }}</p>
+      <p>{{ render_field(form.enrichment_process) }}</p>
+      <p>{{ render_field(form.replicate) }}</p>
+      <p>{{ render_field(form.synthetic_peptide) }}</p>
+      <p>{{ render_field(form.digestion) }}</p>
+      <p>{{ render_field(form.protein_isolation_or_fractionation) }}</p>
+    </fieldset>
+  </details>
 
   <details id="crosslink-fields">
     <summary>Crosslink Details</summary>
@@ -74,39 +109,6 @@
       <p>{{ render_field(form.uv_source) }}</p>
       <p>{{ render_field(form.uv_time_in_seconds) }}</p>
       <p>{{ render_field(form.uv_wavelength_in_nanometers) }}</p>
-    </fieldset>
-  </details>
-
-  <div id="identification-fields">
-    <fieldset>
-      <p>{{ render_field(form.peptide_level_fraction) }}</p>
-    </fieldset>
-  </div>
-
-  <details>
-    <summary>Species</summary>
-    <fieldset>
-      {{ form.species_ids() }}
-    </fieldset>
-  </details>
-
-  <details>
-    <summary>Cell Lines</summary>
-    <fieldset>
-      {{ form.cellosaurus_ids() }}
-    </fieldset>
-  </details>
-
-  <details>
-    <summary>Sample Preparation</summary>
-    <fieldset>
-      <p>{{ render_field(form.isotope_labeling_channel) }}</p>
-      <p>{{ render_field(form.chemical_labelling) }}</p>
-      <p>{{ render_field(form.enrichment_process) }}</p>
-      <p>{{ render_field(form.replicate) }}</p>
-      <p>{{ render_field(form.synthetic_peptide) }}</p>
-      <p>{{ render_field(form.digestion) }}</p>
-      <p>{{ render_field(form.protein_isolation_or_fractionation) }}</p>
     </fieldset>
   </details>
 

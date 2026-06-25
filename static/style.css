@@ -94,6 +94,9 @@ details > fieldset {
   margin-bottom: 0;
 }
 
+/* widen single-line name inputs on entity forms */
+input.field-wide { width: 100%; max-width: 32rem; }
+
 /* outlined box grouping related fields with their hints */
 .field-group {
   border: 1px solid #ccc;

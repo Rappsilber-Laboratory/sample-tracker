@@ -40,6 +40,7 @@ Five main entities: **Project → Experiment → Sample**, plus **Species**, **C
 - CellLine relates to Virus via the `cell_line_virus` many-to-many junction table.
 - Virus has an optional FK to Species and an optional `variant` field.
 - Projects have an `active` flag for archival without data deletion.
+- `Project.code`, `Experiment.code`, and `MassSpecSample.code` (the PK fields) may not contain underscores — enforced by the `no_underscores` validator in forms.py. This is required because the run queue's generated `file_name_root` (see Files & Run Queue) joins codes with `_` as a separator; an underscore inside a code would make that filename unparseable.
 
 ### Request Flow
 

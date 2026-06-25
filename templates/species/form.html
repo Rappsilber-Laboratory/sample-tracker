@@ -10,7 +10,7 @@
 {% endif %}
 <form method="post">
   {{ form.hidden_tag() }}
-  <p>{{ render_field(form.species_name) }}</p>
+  <p>{{ render_field(form.species_name, class="field-wide") }}</p>
   <p>{{ render_field(form.species_taxon) }}</p>
   <button type="submit">Save</button>
   {% if species %}

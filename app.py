@@ -408,6 +408,20 @@ def experiment_detail(project_code, code):
     )
 
 
+@app.route("/projects/<project_code>/experiments/<code>/delete", methods=["POST"])
+def experiment_delete(project_code, code):
+    experiment = db.get_or_404(Experiment, (project_code, code))
+    if any(s.acquired_files for s in experiment.samples):
+        flash("Cannot delete an experiment whose samples have acquired files.", "error")
+        return redirect(url_for("experiment_detail", project_code=project_code, code=code))
+    for sample in list(experiment.samples):
+        _delete_sample(sample)
+    db.session.delete(experiment)
+    db.session.commit()
+    flash("Experiment deleted.", "success")
+    return redirect(url_for("project_detail", code=project_code))
+
+
 @app.route("/projects/<project_code>/experiments/new", methods=["GET", "POST"])
 def experiment_create(project_code):
     # The parent project is fixed by the URL (you reach this page from a project),
@@ -651,18 +665,23 @@ def user_edit(initials):
 # ---------------------------------------------------------------------------
 # Samples
 # ---------------------------------------------------------------------------
-def _sample_copy_choices():
-    """Options for the 'copy from existing sample' dropdown on the new-sample form."""
+def _sample_copy_choices(project_code):
+    """Options for the 'copy from existing sample' dropdown on the new-sample form.
+
+    Scoped to the current project — you can only copy from samples in the same
+    project as the one you're creating.
+    """
     samples = (
         MassSpecSample.query.join(Experiment).join(Project)
         .filter(Project.active == True)  # noqa: E712
-        .order_by(Project.code, Experiment.code, MassSpecSample.code)
+        .filter(MassSpecSample.project_code == project_code)
+        .order_by(Experiment.code, MassSpecSample.code)
         .all()
     )
     return [
         (
             _sample_token(s.project_code, s.experiment_code, s.code),
-            f"{s.project_code} / {s.experiment_code} / {s.code} — {s.name}",
+            f"{s.experiment_code} / {s.code} — {s.name}",
         )
         for s in samples
     ]
@@ -790,7 +809,7 @@ def sample_create(project_code, experiment_code):
     cancel_url = url_for("experiment_detail", project_code=project_code, code=experiment_code)
     return render_template(
         "sample/form.html", form=form, sample=None, experiment=experiment,
-        copy_samples=_sample_copy_choices(), copy_from=copy_from, cancel_url=cancel_url,
+        copy_samples=_sample_copy_choices(project_code), copy_from=copy_from, cancel_url=cancel_url,
     )
 
 
@@ -805,6 +824,27 @@ def sample_detail(project_code, experiment_code, code):
         file_count=len(sample.acquired_files), total_size_gb=total_size_gb, users=users,
         active_users=active_users,
     )
+
+
+def _delete_sample(sample):
+    """Delete a sample plus its queued runs. Caller guarantees no acquired files.
+    Many-to-many species/cell-line rows are removed automatically by SQLAlchemy."""
+    for qf in list(sample.queued_files):
+        db.session.delete(qf)
+    db.session.delete(sample)
+
+
+@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/delete", methods=["POST"])
+def sample_delete(project_code, experiment_code, code):
+    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
+    if sample.acquired_files:
+        flash("Cannot delete a sample that has acquired files.", "error")
+        return redirect(url_for("sample_detail", project_code=project_code,
+                                experiment_code=experiment_code, code=code))
+    _delete_sample(sample)
+    db.session.commit()
+    flash("Sample deleted.", "success")
+    return redirect(url_for("experiment_detail", project_code=project_code, code=experiment_code))
 
 
 # ---------------------------------------------------------------------------
@@ -1194,18 +1234,6 @@ def file_edit(id):
         flash("File association updated.", "success")
         return redirect(url_for("file_detail", id=f.id))
     return render_template("file/edit.html", form=form, file=f, tree=_file_edit_tree())
-
-
-@app.route("/files/<int:id>/delete", methods=["POST"])
-def file_delete(id):
-    f = db.get_or_404(AcquiredFile, id)
-    key = (f.project_code, f.experiment_code, f.sample_code)
-    db.session.delete(f)
-    db.session.commit()
-    flash("File record deleted.", "success")
-    if all(key):
-        return redirect(url_for("sample_detail", project_code=key[0], experiment_code=key[1], code=key[2]))
-    return redirect(url_for("file_list"))
 
 
 @app.route("/instrument-usage")
