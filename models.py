@@ -209,10 +209,14 @@ class QueuedFile(db.Model):
     __tablename__ = "queued_file"
 
     # Composite PK: a queued file is a slot in one instrument's run order for a
-    # given day. daily_counter is that order (incl. BLANK-AND-CLEANING runs).
+    # given day. daily_counter is that order (incl. BLANK-AND-CLEANING runs);
+    # it's an internal ordering slot, not the number shown in filenames.
     instrument_initial = db.Column(db.Text, primary_key=True, nullable=False)
     date_queued = db.Column(db.Date, primary_key=True, nullable=False)
     daily_counter = db.Column(db.Integer, primary_key=True, nullable=False)
+    # Sample run number burned into the filename. Counts sample runs only, so
+    # BLANK-AND-CLEANING runs (which leave this NULL) don't consume a number.
+    run_number = db.Column(db.Integer, nullable=True)
     project_code = db.Column(db.Text, nullable=True)
     experiment_code = db.Column(db.Text, nullable=True)
     sample_code = db.Column(db.Text, nullable=True)
@@ -227,11 +231,12 @@ class QueuedFile(db.Model):
     file_name_root = db.Column(
         db.Text,
         db.Computed(
-            "instrument_initial || '_' || replace(date_queued, '-', '') || '-' || printf('%02d', daily_counter)"
+            "instrument_initial || '_' || replace(date_queued, '-', '')"
             " || CASE WHEN nullif(sample_code, '') IS NOT NULL"
-            " THEN '_' || concat_ws('_', nullif(project_code, ''), nullif(user_initials, ''),"
-            " nullif(experiment_code, ''), nullif(sample_code, '')) ELSE '' END"
-            " || '_'",
+            " THEN '-' || printf('%02d', run_number)"
+            " || '_' || concat_ws('_', nullif(project_code, ''), nullif(user_initials, ''),"
+            " nullif(experiment_code, ''), nullif(sample_code, '')) || '_'"
+            " ELSE '_' END",
             persisted=False,
         ),
     )

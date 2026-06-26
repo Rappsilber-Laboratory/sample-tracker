@@ -854,8 +854,9 @@ def queued_filename(qf):
     """Build the run filename for a QueuedFile row.
 
     Sample run: {inst}_{YYYYMMDD}-{NN}_{proj}_{user}_{exp}_{samp}_{postfix}
-    Blank run:  {inst}_{YYYYMMDD}-{NN}_BLANK-AND-CLEANING
-    NN = daily_counter (the per-day, per-instrument run order) padded to 2 digits.
+    Blank run:  {inst}_{YYYYMMDD}_BLANK-AND-CLEANING
+    NN = run_number (sample runs only, blanks excluded) padded to 2 digits;
+    blanks carry no NN at all.
 
     file_name_root is the DB-generated part up to and including the '_' before the
     postfix, so the full filename is just root + postfix.
@@ -889,18 +890,37 @@ def _next_daily_counter(instrument, day):
     return (current_max or 0) + 1
 
 
+def _next_run_number(instrument, day):
+    """Next sample run number for an instrument on a day.
+
+    Counts only sample runs (``run_number`` is NULL on BLANK-AND-CLEANING rows),
+    so blanks never consume a run number and the per-day sample numbering stays
+    contiguous regardless of how many blanks are interleaved.
+    """
+    current_max = (
+        db.session.query(func.max(QueuedFile.run_number))
+        .filter_by(instrument_initial=instrument, date_queued=day)
+        .scalar()
+    )
+    return (current_max or 0) + 1
+
+
 def _append_to_queue(instrument, day, build_rows, attempts=5):
     """Append rows to an instrument's day queue, race-safe.
 
-    ``build_rows(start)`` returns the ``QueuedFile`` rows to insert, numbered from
-    the first free ``daily_counter``. Two concurrent requests can read the same
-    max counter and pick the same slot; the loser's commit then violates the
-    composite PK. We catch that, roll back, recompute the next free slot, and
-    retry the whole (re-numbered) batch — each attempt commits atomically, so
-    there are never partial inserts.
+    ``build_rows(counter_start, run_start)`` returns the ``QueuedFile`` rows to
+    insert, numbered from the first free ``daily_counter`` (the PK ordering slot)
+    and ``run_number`` (the sample run number). Two concurrent requests can read
+    the same maxima and pick the same slot; the loser's commit then violates the
+    composite PK. We catch that, roll back, recompute both, and retry the whole
+    (re-numbered) batch — each attempt commits atomically, so there are never
+    partial inserts. Recomputing run_start in lockstep with the PK slot keeps
+    sample run numbers unique even though they aren't themselves part of the PK.
     """
     for _ in range(attempts):
-        rows = build_rows(_next_daily_counter(instrument, day))
+        rows = build_rows(
+            _next_daily_counter(instrument, day), _next_run_number(instrument, day)
+        )
         db.session.add_all(rows)
         try:
             db.session.commit()
@@ -927,6 +947,7 @@ def _day_queue_json(day):
     for qf in rows:
         queues[qf.instrument_initial].append({
             "daily_counter": qf.daily_counter,
+            "run_number": qf.run_number,
             "filename": queued_filename(qf),
             "postfix": qf.postfix,
             "user_initials": qf.user_initials,
@@ -987,11 +1008,12 @@ def sample_queue(project_code, experiment_code, code):
     if count < 1:
         abort(400, "count must be >= 1")
 
-    _append_to_queue(inst, day, lambda start: [
+    _append_to_queue(inst, day, lambda counter_start, run_start: [
         QueuedFile(
             instrument_initial=inst,
             date_queued=day,
-            daily_counter=start + i,
+            daily_counter=counter_start + i,
+            run_number=run_start + i,
             project_code=project_code,
             experiment_code=experiment_code,
             sample_code=code,
@@ -1018,10 +1040,12 @@ def api_queue_blank():
     day = _parse_queue_date((data.get("date") or "").strip())
     if not inst:
         abort(400, "instrument_initial is required")
-    _append_to_queue(inst, day, lambda start: [QueuedFile(
+    # run_number is left NULL so the blank doesn't consume a sample run number
+    # and its filename carries no -NN (see file_name_root).
+    _append_to_queue(inst, day, lambda counter_start, run_start: [QueuedFile(
         instrument_initial=inst,
         date_queued=day,
-        daily_counter=start,
+        daily_counter=counter_start,
         user_initials=user,
         postfix="BLANK-AND-CLEANING",
     )])

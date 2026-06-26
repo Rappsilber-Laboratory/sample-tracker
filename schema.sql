@@ -142,6 +142,9 @@ CREATE TABLE queued_file (
     instrument_initial TEXT NOT NULL,
     date_queued DATE NOT NULL,
     daily_counter INTEGER NOT NULL,
+    -- Sample run number burned into the filename. Counts sample runs only, so
+    -- BLANK-AND-CLEANING runs (which leave this NULL) don't consume a number.
+    run_number INTEGER,
     project_code TEXT,
     experiment_code TEXT,
     sample_code TEXT,
@@ -149,12 +152,13 @@ CREATE TABLE queued_file (
     postfix TEXT,
     exported BOOLEAN NOT NULL DEFAULT 0,
     file_name_root TEXT GENERATED ALWAYS AS (
-        instrument_initial || '_' || replace(date_queued, '-', '') || '-' || printf('%02d', daily_counter)
+        instrument_initial || '_' || replace(date_queued, '-', '')
         || CASE WHEN nullif(sample_code, '') IS NOT NULL
-                THEN '_' || concat_ws('_', nullif(project_code, ''), nullif(user_initials, ''),
-                                           nullif(experiment_code, ''), nullif(sample_code, ''))
-                ELSE '' END
-        || '_'
+                THEN '-' || printf('%02d', run_number)
+                     || '_' || concat_ws('_', nullif(project_code, ''), nullif(user_initials, ''),
+                                               nullif(experiment_code, ''), nullif(sample_code, ''))
+                     || '_'
+                ELSE '_' END
     ) VIRTUAL,
     PRIMARY KEY (instrument_initial, date_queued, daily_counter),
     FOREIGN KEY (project_code, experiment_code, sample_code)

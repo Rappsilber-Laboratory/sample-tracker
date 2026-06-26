@@ -124,8 +124,10 @@
       const tr = document.createElement('tr');
       if (row.is_blank) tr.className = 'queue-blank-row';
 
+      // Run number is shown for sample runs only; blanks carry no number and
+      // are identified internally by daily_counter (used by update/delete below).
       const counter = document.createElement('td');
-      counter.textContent = row.daily_counter;
+      counter.textContent = row.run_number == null ? '—' : row.run_number;
       tr.appendChild(counter);
 
       const fname = document.createElement('td');
