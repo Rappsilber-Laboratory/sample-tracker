@@ -154,7 +154,7 @@ CREATE TABLE queued_file (
     file_name_root TEXT GENERATED ALWAYS AS (
         instrument_initial || '_' || replace(date_queued, '-', '')
         || CASE WHEN nullif(sample_code, '') IS NOT NULL
-                THEN '-' || printf('%02d', run_number)
+                THEN '-' || printf('%03d', run_number)
                      || '_' || concat_ws('_', nullif(project_code, ''), nullif(user_initials, ''),
                                                nullif(experiment_code, ''), nullif(sample_code, ''))
                      || '_'

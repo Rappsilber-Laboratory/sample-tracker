@@ -129,7 +129,7 @@ class SampleTrackerDB:
                     file_name_root,
                     instrument_initial,
                     replace(date_queued, '-', '') AS date_yyyymmdd,
-                    printf('%02d', run_number) AS run_number,
+                    printf('%03d', run_number) AS run_number,
                     project_code,
                     user_initials,
                     experiment_code,

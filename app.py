@@ -853,10 +853,10 @@ def sample_delete(project_code, experiment_code, code):
 def queued_filename(qf):
     """Build the run filename for a QueuedFile row.
 
-    Sample run: {inst}_{YYYYMMDD}-{NN}_{proj}_{user}_{exp}_{samp}_{postfix}
+    Sample run: {inst}_{YYYYMMDD}-{NNN}_{proj}_{user}_{exp}_{samp}_{postfix}
     Blank run:  {inst}_{YYYYMMDD}_BLANK-AND-CLEANING
-    NN = run_number (sample runs only, blanks excluded) padded to 2 digits;
-    blanks carry no NN at all.
+    NNN = run_number (sample runs only, blanks excluded) padded to 3 digits;
+    blanks carry no NNN at all.
 
     file_name_root is the DB-generated part up to and including the '_' before the
     postfix, so the full filename is just root + postfix.
