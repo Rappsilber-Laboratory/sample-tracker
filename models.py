@@ -57,7 +57,10 @@ class Experiment(db.Model):
     active = db.Column(db.Boolean, nullable=False, default=True)
 
     project = db.relationship("Project", back_populates="experiments")
-    samples = db.relationship("MassSpecSample", back_populates="experiment")
+    samples = db.relationship(
+        "MassSpecSample", back_populates="experiment",
+        cascade="all, delete-orphan",
+    )
 
 
 class Species(db.Model):
