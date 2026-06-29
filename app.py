@@ -67,6 +67,10 @@ def _configure_sqlite_connection(dbapi_connection, connection_record):
 # ---------------------------------------------------------------------------
 TOKEN_SEP = "\x1f"
 
+# Project holding commonly-used template samples, offered as copy sources from
+# any project's new-sample form.
+FAV_PROJECT_CODE = "FAV"
+
 
 def _exp_token(project_code, experiment_code):
     return f"{project_code}{TOKEN_SEP}{experiment_code}"
@@ -666,25 +670,43 @@ def user_edit(initials):
 # Samples
 # ---------------------------------------------------------------------------
 def _sample_copy_choices(project_code):
-    """Options for the 'copy from existing sample' dropdown on the new-sample form.
+    """Grouped options for the 'copy from existing sample' dropdown.
 
-    Scoped to the current project — you can only copy from samples in the same
-    project as the one you're creating.
+    Returns a list of (group_label, [(token, label), ...]) tuples: the current
+    project's active samples, followed by the shared FAV templates (always
+    included, regardless of the FAV project's active flag).
     """
-    samples = (
+    def _options(samples):
+        return [
+            (
+                _sample_token(s.project_code, s.experiment_code, s.code),
+                f"{s.experiment_code} / {s.code} — {s.name}",
+            )
+            for s in samples
+        ]
+
+    current = (
         MassSpecSample.query.join(Experiment).join(Project)
         .filter(Project.active == True)  # noqa: E712
         .filter(MassSpecSample.project_code == project_code)
         .order_by(Experiment.code, MassSpecSample.code)
         .all()
     )
-    return [
-        (
-            _sample_token(s.project_code, s.experiment_code, s.code),
-            f"{s.experiment_code} / {s.code} — {s.name}",
+    groups = [("Current project", _options(current))]
+
+    # FAV templates: always available, even if the FAV project is archived.
+    # Skip if the current project IS FAV (its samples are already listed above).
+    if project_code != FAV_PROJECT_CODE:
+        fav = (
+            MassSpecSample.query
+            .filter(MassSpecSample.project_code == FAV_PROJECT_CODE)
+            .order_by(MassSpecSample.experiment_code, MassSpecSample.code)
+            .all()
         )
-        for s in samples
-    ]
+        if fav:
+            groups.append(("FAV templates", _options(fav)))
+
+    return groups
 
 
 def _species_multi_choices():

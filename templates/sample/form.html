@@ -16,8 +16,14 @@
     <label for="copy_from">Existing sample</label>
     <select id="copy_from" name="copy_from_select" onchange="if (this.value) { window.location = '{{ url_for('sample_create', project_code=experiment.project_code, experiment_code=experiment.code) }}?copy_from=' + encodeURIComponent(this.value); }">
       <option value="">— none —</option>
-      {% for token, label in copy_samples %}
-      <option value="{{ token }}" {% if token == copy_from %}selected{% endif %}>{{ label }}</option>
+      {% for group_label, options in copy_samples %}
+        {% if options %}
+        <optgroup label="{{ group_label }}">
+          {% for token, label in options %}
+          <option value="{{ token }}" {% if token == copy_from %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </optgroup>
+        {% endif %}
       {% endfor %}
     </select>
   </p>
