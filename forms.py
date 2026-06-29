@@ -12,13 +12,22 @@ from wtforms import (
 from wtforms.validators import DataRequired, Optional, ValidationError
 
 
-def no_underscores(form, field):
-    if field.data and "_" in field.data:
-        raise ValidationError("Code must not contain underscores.")
+def valid_code(form, field):
+    if not field.data:
+        return
+    if len(field.data) > 8:
+        raise ValidationError("Code must be at most 8 characters.")
+    if not field.data.isascii() or not field.data.isalnum():
+        raise ValidationError("Code must contain only letters and digits (a-z, A-Z, 0-9).")
+
+
+CODE_RENDER_KW = {"maxlength": 8, "pattern": "[A-Za-z0-9]+"}
 
 
 class ProjectForm(FlaskForm):
-    code = StringField("Code", validators=[DataRequired(), no_underscores])
+    code = StringField(
+        "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
+    )
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
@@ -27,7 +36,9 @@ class ProjectForm(FlaskForm):
 
 class ExperimentForm(FlaskForm):
     project_code = SelectField("Project", coerce=str, validators=[DataRequired()])
-    code = StringField("Code", validators=[DataRequired(), no_underscores])
+    code = StringField(
+        "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
+    )
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
@@ -65,7 +76,9 @@ class UserForm(FlaskForm):
 
 class MassSpecSampleForm(FlaskForm):
     experiment_code = SelectField("Experiment", coerce=str, validators=[DataRequired()])
-    code = StringField("Code", validators=[DataRequired(), no_underscores])
+    code = StringField(
+        "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
+    )
     name = StringField("Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", coerce=str, validators=[DataRequired()])
