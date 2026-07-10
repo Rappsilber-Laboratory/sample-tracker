@@ -17,7 +17,6 @@
       <th>Name</th>
       <th>Description</th>
       <th>Experiments</th>
-      <th>Samples</th>
       <th>Files</th>
       <th>Active</th>
       <th>Contact</th>
@@ -30,7 +29,6 @@
       <td><a href="{{ url_for('project_detail', code=project.code) }}">{{ project.name }}</a></td>
       <td>{{ project.description or '' }}</td>
       <td>{{ exp_counts.get(project.code, 0) }}</td>
-      <td>{{ sample_counts.get(project.code, 0) }}</td>
       <td>{{ file_counts.get(project.code, 0) or '' }}</td>
       <td>
         <input type="checkbox"

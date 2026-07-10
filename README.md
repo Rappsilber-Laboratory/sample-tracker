@@ -1,12 +1,12 @@
-# Mass Spec Acquisition Tracker
+# File Acquisition Database
 
 Simple setup and run instructions.
 
 ## Run locally
 
 ```bash
-python3 -m venv .sample_tracker
-source .sample_tracker/bin/activate
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 python3 -m flask --app app init-db
 

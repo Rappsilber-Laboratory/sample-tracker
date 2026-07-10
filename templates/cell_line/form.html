@@ -8,7 +8,7 @@
 {% else %}
   <p><a href="{{ url_for('cell_line_list') }}">Cancel</a></p>
 {% endif %}
-<form method="post">
+<form method="post"{% if cell_line %} data-autosave{% endif %}>
   {{ form.hidden_tag() }}
   {% if cell_line %}
   <p><strong>Cellosaurus ID:</strong> {{ cell_line.cellosaurus_id }}</p>
@@ -20,10 +20,11 @@
   <p>{{ render_field(form.cell_line_name, class="field-wide") }}</p>
   <p>{{ render_field(form.species_id) }}</p>
 {#  <p>{{ render_field(form.virus_ids) }}</p>#}
-  <button type="submit">Save</button>
   {% if cell_line %}
-    <a href="{{ url_for('cell_line_detail', cellosaurus_id=cell_line.cellosaurus_id) }}">Cancel</a>
+    <span class="autosave-status"></span>
+    <a href="{{ url_for('cell_line_detail', cellosaurus_id=cell_line.cellosaurus_id) }}">Done</a>
   {% else %}
+    <button type="submit">Create</button>
     <a href="{{ url_for('cell_line_list') }}">Cancel</a>
   {% endif %}
 </form>

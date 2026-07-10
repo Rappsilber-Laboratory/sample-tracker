@@ -40,16 +40,10 @@
     var size = fmtGB(bytes);
     if (level === "project") {
       var exps = childCount(node);
-      var samples = countDescendants(node, "sample");
       var files = countDescendants(node, "file");
-      return name + " (" + exps + " experiments · " + samples + " samples · " + files + " files, " + size + ")";
+      return name + " (" + exps + " experiments · " + files + " files, " + size + ")";
     }
     if (level === "experiment") {
-      var samples = childCount(node);
-      var files = countDescendants(node, "file");
-      return name + " (" + samples + " samples · " + files + " files, " + size + ")";
-    }
-    if (level === "sample") {
       var files = childCount(node);
       return name + " (" + files + " files, " + size + ")";
     }

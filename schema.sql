@@ -1,5 +1,5 @@
--- Mass Spec Acquisition Tracker SQLite Schema
--- Based on sampleTracker13.dia UML diagram
+-- File Acquisition Database SQLite Schema
+-- Based on sampleTracker.dia UML diagram
 
 PRAGMA foreign_keys = ON;
 
@@ -18,28 +18,11 @@ CREATE TABLE experiment (
     description TEXT NOT NULL,
     user_initials TEXT NOT NULL,
     active INTEGER NOT NULL DEFAULT 1,
-    PRIMARY KEY (project_code, code)
-);
 
-CREATE TABLE species (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    species_name TEXT NOT NULL,
-    species_taxon TEXT NOT NULL
-);
+    -- Varying conditions: JSON array driving the file/run list (populated later).
+    varying_conditions TEXT NOT NULL DEFAULT '[]',
 
-CREATE TABLE cell_line (
-    cellosaurus_id TEXT NOT NULL PRIMARY KEY,
-    cell_line_name TEXT NOT NULL,
-    species_id INTEGER NOT NULL REFERENCES species(id)
-);
-
-CREATE TABLE mass_spec_sample (
-    project_code TEXT NOT NULL,
-    experiment_code TEXT NOT NULL,
-    code TEXT NOT NULL,
-    name TEXT NOT NULL,
-    description TEXT NOT NULL,
-    user_initials TEXT NOT NULL,
+    -- Invariant conditions defined on the experiment.
     disease TEXT,
     phenotype TEXT,
     isotope_labeling_channel TEXT,
@@ -53,12 +36,14 @@ CREATE TABLE mass_spec_sample (
     synthetic_peptide TEXT CHECK(synthetic_peptide IN ('yes', 'no', 'spiked in')),
     digestion TEXT,
     protein_isolation_or_fractionation TEXT,
-    crosslinked_sample INTEGER NOT NULL DEFAULT 0,
     quantitation INTEGER DEFAULT 0,
     quantitation_scheme TEXT,
     quantitation_method TEXT CHECK(quantitation_method IN ('LFQ', 'isotope labelled MS1', 'Isobaric MS2')),
 
-    -- CrosslinkSample columns (used when crosslinked_sample = 1)
+    -- Discriminator (1 = crosslinking, 0 = identification, -1 = plain experiment).
+    crosslinking_experiment INTEGER NOT NULL DEFAULT 0,
+
+    -- CrosslinkingExperiment columns (used when crosslinking_experiment = 1)
     crosslinker TEXT,
     crosslinking_type TEXT CHECK(crosslinking_type IN ('in cell', 'in lysate', 'in solution', 'compound')),
     protein_or_cell_concentration REAL,
@@ -74,12 +59,22 @@ CREATE TABLE mass_spec_sample (
     uv_time_in_seconds REAL,
     uv_wavelength_in_nanometers REAL,
 
-    -- IdentificationSample columns (used when crosslinked_sample = 0)
+    -- IdentificationExperiment columns (used when crosslinking_experiment = 0)
     peptide_level_fraction TEXT,
 
-    PRIMARY KEY (project_code, experiment_code, code),
-    FOREIGN KEY (project_code, experiment_code)
-        REFERENCES experiment(project_code, code)
+    PRIMARY KEY (project_code, code)
+);
+
+CREATE TABLE species (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    species_name TEXT NOT NULL,
+    species_taxon TEXT NOT NULL
+);
+
+CREATE TABLE cell_line (
+    cellosaurus_id TEXT NOT NULL PRIMARY KEY,
+    cell_line_name TEXT NOT NULL,
+    species_id INTEGER NOT NULL REFERENCES species(id)
 );
 
 CREATE TABLE virus (
@@ -95,24 +90,22 @@ CREATE TABLE cell_line_virus (
     PRIMARY KEY (cellosaurus_id, virus_id)
 );
 
-CREATE TABLE sample_species (
+CREATE TABLE experiment_species (
     project_code TEXT NOT NULL,
     experiment_code TEXT NOT NULL,
-    sample_code TEXT NOT NULL,
     species_id INTEGER NOT NULL REFERENCES species(id),
-    PRIMARY KEY (project_code, experiment_code, sample_code, species_id),
-    FOREIGN KEY (project_code, experiment_code, sample_code)
-        REFERENCES mass_spec_sample(project_code, experiment_code, code)
+    PRIMARY KEY (project_code, experiment_code, species_id),
+    FOREIGN KEY (project_code, experiment_code)
+        REFERENCES experiment(project_code, code)
 );
 
-CREATE TABLE sample_cell_line (
+CREATE TABLE experiment_cell_line (
     project_code TEXT NOT NULL,
     experiment_code TEXT NOT NULL,
-    sample_code TEXT NOT NULL,
     cellosaurus_id TEXT NOT NULL REFERENCES cell_line(cellosaurus_id),
-    PRIMARY KEY (project_code, experiment_code, sample_code, cellosaurus_id),
-    FOREIGN KEY (project_code, experiment_code, sample_code)
-        REFERENCES mass_spec_sample(project_code, experiment_code, code)
+    PRIMARY KEY (project_code, experiment_code, cellosaurus_id),
+    FOREIGN KEY (project_code, experiment_code)
+        REFERENCES experiment(project_code, code)
 );
 
 CREATE TABLE user (
@@ -121,11 +114,16 @@ CREATE TABLE user (
     active INTEGER NOT NULL DEFAULT 1
 );
 
+CREATE TABLE instrument (
+    initial TEXT NOT NULL PRIMARY KEY,
+    name TEXT NOT NULL,
+    model TEXT
+);
+
 CREATE TABLE acquired_file (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     project_code TEXT,
     experiment_code TEXT,
-    sample_code TEXT,
     location TEXT,
     filename TEXT,
     size_bytes INTEGER,
@@ -134,33 +132,6 @@ CREATE TABLE acquired_file (
     user_initials TEXT,
     scan_count INTEGER,
     meta TEXT,
-    FOREIGN KEY (project_code, experiment_code, sample_code)
-        REFERENCES mass_spec_sample(project_code, experiment_code, code)
-);
-
-CREATE TABLE queued_file (
-    instrument_initial TEXT NOT NULL,
-    date_queued DATE NOT NULL,
-    daily_counter INTEGER NOT NULL,
-    -- Sample run number burned into the filename. Counts sample runs only, so
-    -- BLANK-AND-CLEANING runs (which leave this NULL) don't consume a number.
-    run_number INTEGER,
-    project_code TEXT,
-    experiment_code TEXT,
-    sample_code TEXT,
-    user_initials TEXT,
-    postfix TEXT,
-    exported BOOLEAN NOT NULL DEFAULT 0,
-    file_name_root TEXT GENERATED ALWAYS AS (
-        instrument_initial || '_' || replace(date_queued, '-', '')
-        || CASE WHEN nullif(sample_code, '') IS NOT NULL
-                THEN '-' || printf('%03d', run_number)
-                     || '_' || concat_ws('_', nullif(project_code, ''), nullif(user_initials, ''),
-                                               nullif(experiment_code, ''), nullif(sample_code, ''))
-                     || '_'
-                ELSE '_' END
-    ) VIRTUAL,
-    PRIMARY KEY (instrument_initial, date_queued, daily_counter),
-    FOREIGN KEY (project_code, experiment_code, sample_code)
-        REFERENCES mass_spec_sample(project_code, experiment_code, code)
+    FOREIGN KEY (project_code, experiment_code)
+        REFERENCES experiment(project_code, code)
 );

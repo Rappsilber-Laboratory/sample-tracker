@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Instruments{% endblock %}
+{% block content %}
+<h2>Instruments</h2>
+<p><a href="{{ url_for('instrument_create') }}" role="button">New Instrument</a></p>
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Initial</th>
+      <th>Model</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for instrument in instruments %}
+    <tr>
+      <td><a href="{{ url_for('instrument_detail', initial=instrument.initial) }}">{{ instrument.name }}</a></td>
+      <td>{{ instrument.initial }}</td>
+      <td>{{ instrument.model or '—' }}</td>
+      <td><a href="{{ url_for('instrument_edit', initial=instrument.initial) }}">Edit</a></td>
+    </tr>
+    {% else %}
+    <tr><td colspan="4">No instruments yet.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

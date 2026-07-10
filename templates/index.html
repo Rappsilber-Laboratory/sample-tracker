@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Mass Spec Acquisition Tracker{% endblock %}
+{% block title %}File Acquisition Database{% endblock %}
 {% block content %}
 <div id="dashboard">
   <div id="tree-container"></div>
@@ -12,7 +12,7 @@
     .then(function(r) { return r.json(); })
     .then(function(data) {
       TreeWidget.render('#tree-container', data, {
-        levelNames: ['', 'Projects', 'Experiments', 'Samples', 'Files'],
+        levelNames: ['', 'Projects', 'Experiments', 'Files'],
         dy: 220,
         hideRoot: true
       });

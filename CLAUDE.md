@@ -20,7 +20,7 @@ There are no tests or linting tools configured in this project.
 
 ## Architecture
 
-This is a Flask web application for laboratory sample tracking, focused on protein cross-linking and mass spectrometry experiments.
+This is a Flask web application (the "File Acquisition Database") for tracking laboratory mass-spectrometry acquisitions, focused on protein cross-linking and identification experiments.
 
 ### Core Files
 
@@ -33,14 +33,15 @@ This is a Flask web application for laboratory sample tracking, focused on prote
 
 ### Data Model
 
-Five main entities: **Project → Experiment → Sample**, plus **Species**, **CellLine**, and **Virus** as reference data.
+Main entities: **Project → Experiment**, plus **Species**, **CellLine**, **Virus**, **Instrument**, and **User** as reference data.
 
-- Samples are polymorphic: `CrosslinkSample` vs `IdentificationSample`, each with a distinct set of type-specific fields. The discriminator is the `crosslinked_sample` flag (1 = crosslink, 0 = identification); app.py nullifies the irrelevant type's fields on save to maintain integrity.
-- Species and CellLine relate to Sample via many-to-many junction tables (`sample_species`, `sample_cell_line`).
+- Experiments are polymorphic: `CrosslinkingExperiment` vs `IdentificationExperiment`, each with a distinct set of type-specific fields, on top of the shared invariant-condition fields carried by the base `Experiment`. The discriminator is the `crosslinking_experiment` flag (1 = crosslinking, 0 = identification, -1 = plain); app.py nullifies the irrelevant type's fields on save to maintain integrity. The type is editable on the edit page: since SQLAlchemy can't re-class an instance in place, `experiment_detail` switches it via a direct discriminator-column UPDATE (keeping the in-session instance's identity for the flush), and the row reloads as the correct subclass on the next request.
+- Species and CellLine relate to Experiment via many-to-many junction tables (`experiment_species`, `experiment_cell_line`).
 - CellLine relates to Virus via the `cell_line_virus` many-to-many junction table.
 - Virus has an optional FK to Species and an optional `variant` field.
+- **Instrument** (`initial` PK, `name`, `model`) is reference data with its own CRUD (like Users). `AcquiredFile.instrument_initial` references it loosely by initial (plain text, not an enforced FK — matching the `user_initials` convention).
 - Projects have an `active` flag for archival without data deletion.
-- `Project.code`, `Experiment.code`, and `MassSpecSample.code` (the PK fields) may not contain underscores — enforced by the `no_underscores` validator in forms.py. This is required because the run queue's generated `file_name_root` (see Files & Run Queue) joins codes with `_` as a separator; an underscore inside a code would make that filename unparseable.
+- `Project.code` and `Experiment.code` (the PK fields) must be alphanumeric and at most 8 characters — enforced by the `valid_code` validator in forms.py.
 
 ### Request Flow
 
@@ -49,8 +50,7 @@ Five main entities: **Project → Experiment → Sample**, plus **Species**, **C
 3. On POST, form data is validated, then mapped to SQLAlchemy model instances and committed.
 4. Templates in `templates/<entity>/` render the response; `base.html` and `_form_helpers.html` are shared.
 
-### Files & Run Queue
+### Files
 
-- **Acquired files** are tracked as `AcquiredFile` DB rows (not by live disk scanning). They are listed at `/files`, created per-sample via `.../db-files/new`, and can be re-associated to a different sample at `/files/<id>/edit`. Sizes are stored in bytes (entered as decimal GB and multiplied by `1e9`).
-- **Run queue** (`QueuedFile`): `/api/queue/*` endpoints append/update/delete/clear runs for an instrument's per-day run order, driven by the `static/js/queue-panel.js` panel. `daily_counter` is the run order; clearing marks rows `exported` rather than deleting so counters never get reused. `/api/queue/csv` exports a Thermo Xcalibur sequence CSV (cp1252-encoded).
-- **Aggregate views**: `/api/tree` (size-sorted project→experiment→sample→file tree), `/instrument-usage`, and `/disk-usage`.
+- **Acquired files** are tracked as `AcquiredFile` DB rows (not by live disk scanning). They are listed at `/files`, created per-experiment via `.../db-files/new`, and can be re-associated to a different experiment at `/files/<id>/edit`. Sizes are stored in bytes (entered as decimal GB and multiplied by `1e9`).
+- **Aggregate views**: `/api/tree` (size-sorted project→experiment→file tree), `/instrument-usage`, and `/disk-usage`.
