@@ -28,6 +28,7 @@
 
   const PREVIEW_LIMIT = 200;
   const MAX_RUNS = 10000;
+  const MAX_FILENAME_LEN = 180; // mirror of _MAX_FILENAME_LEN in app.py
 
   // ---- 96-well plate assignment (mirror of the helpers in app.py) ----
   const WELL_ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'];
@@ -163,13 +164,21 @@
     return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
+  let hasLongFilename = false; // set by renderPreview; blocks generation
+
   function updateGenerateEnabled() {
     if (!generateBtn) return;
-    const ok = (genInstrument && genInstrument.value.trim())
+    const ready = (genInstrument && genInstrument.value.trim())
       && (genUser && genUser.value.trim())
       && (genDate && genDate.value.trim());
-    generateBtn.disabled = !ok;
-    generateBtn.title = ok ? '' : 'Choose an instrument, operator and date first';
+    generateBtn.disabled = !ready || hasLongFilename;
+    if (!ready) {
+      generateBtn.title = 'Choose an instrument, operator and date first';
+    } else if (hasLongFilename) {
+      generateBtn.title = 'Some filenames exceed ' + MAX_FILENAME_LEN + ' characters';
+    } else {
+      generateBtn.title = '';
+    }
   }
 
   function changed() {
@@ -232,9 +241,24 @@
       return [base].concat(segs).join('_');
     });
 
+    // Flag filenames that exceed the length Xcalibur/Windows can handle. Only
+    // the previewed lines are measured here; the server re-checks every run and
+    // refuses to generate the CSV if any is too long.
+    const longCount = lines.filter((l) => l.length > MAX_FILENAME_LEN).length;
+    hasLongFilename = longCount > 0;
+    updateGenerateEnabled();
+
     let html = '<p class="vc-count">' + total + ' file' + (total === 1 ? '' : 's') +
       (total > PREVIEW_LIMIT ? ' (showing first ' + PREVIEW_LIMIT + ')' : '') + '</p>';
-    html += '<ul class="vc-preview-list">' + lines.map((l) => '<li>' + escapeHtml(l) + '</li>').join('') + '</ul>';
+    if (hasLongFilename) {
+      html += '<p class="vc-warning">⚠ ' + longCount + ' filename' +
+        (longCount === 1 ? '' : 's') + ' exceed ' + MAX_FILENAME_LEN +
+        ' characters — shorten the codes, prefixes or postfixes before generating.</p>';
+    }
+    html += '<ul class="vc-preview-list">' + lines.map((l) => {
+      const cls = l.length > MAX_FILENAME_LEN ? ' class="vc-too-long"' : '';
+      return '<li' + cls + '>' + escapeHtml(l) + '</li>';
+    }).join('') + '</ul>';
     preview.innerHTML = html;
   }
 

@@ -891,6 +891,10 @@ _RANGE_RE = re.compile(
     r"^\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*(?:@\s*(\d+(?:\.\d+)?)\s*)?$"
 )
 _MAX_RUNS = 10000
+# Xcalibur/Windows choke on very long run filenames, so refuse to generate a
+# queue containing any. The JS twin (MAX_FILENAME_LEN in variable-conditions.js)
+# flags the same limit in the live preview.
+_MAX_FILENAME_LEN = 180
 
 
 def _fmt_num(x):
@@ -1022,6 +1026,15 @@ def _generate_runs(conditions, inst, ymd, proj, user, exp, run_start, well=None)
             "values": list(combo),
             "position": position,
         })
+    too_long = [r for r in rows if len(r["filename"]) > _MAX_FILENAME_LEN]
+    if too_long:
+        longest = max(too_long, key=lambda r: len(r["filename"]))
+        return [], (
+            f"{len(too_long)} generated filename(s) exceed {_MAX_FILENAME_LEN} "
+            f"characters (longest is {len(longest['filename'])}: "
+            f"\"{longest['filename']}\"). Shorten the codes, prefixes, or "
+            "postfixes and try again."
+        )
     return rows, None
 
 
