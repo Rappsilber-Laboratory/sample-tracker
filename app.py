@@ -6,11 +6,12 @@ import os
 import re
 import sqlite3
 from datetime import date
+from pathlib import Path
 
 import click
 from collections import defaultdict
 
-from flask import Flask, Response, flash, jsonify, redirect, render_template, request, url_for
+from flask import Flask, Response, abort, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import event, func, inspect as sa_inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
@@ -42,6 +43,15 @@ from models import (
     User,
     Virus,
     db,
+)
+from sdrf_support.sdrf_columns import KNOWN_SDRF_HEADERS, column_group
+from sdrf_support.sdrf_export import (
+    ACQUISITION_METHODS,
+    INSTRUMENT_MODELS,
+    SDRF_ANNOTATION_TOOL,
+    SDRF_TEMPLATE,
+    SDRF_VERSION,
+    normalize_instrument,
 )
 
 app = Flask(__name__)
@@ -187,6 +197,205 @@ def init_db():
 @app.route("/")
 def index():
     return redirect(url_for("project_list"))
+
+
+# ---------------------------------------------------------------------------
+# SDRF metadata editor
+# ---------------------------------------------------------------------------
+SDRF_REQUIRED_HEADERS = (
+    "source name",
+    "characteristics[organism]",
+    "characteristics[organism part]",
+    "characteristics[biological replicate]",
+    "assay name",
+    "technology type",
+    "comment[proteomics data acquisition method]",
+    "comment[label]",
+    "comment[instrument]",
+    "comment[cleavage agent details]",
+    "comment[fraction identifier]",
+    "comment[technical replicate]",
+    "comment[data file]",
+)
+
+SDRF_TECHNOLOGY_TYPE = "proteomic profiling by mass spectrometry"
+SDRF_AUTOMATIC_COLUMNS = {
+    "comment[sdrf annotation tool]": SDRF_ANNOTATION_TOOL,
+    "comment[sdrf version]": SDRF_VERSION,
+    "comment[sdrf template]": SDRF_TEMPLATE,
+}
+
+
+def _sdrf_text(value):
+    """Return a safe, single-line SDRF cell value."""
+    if value is None:
+        return ""
+    return str(value).replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
+
+
+def _sdrf_organism(species):
+    if not species:
+        return ""
+    name = _sdrf_text(species.species_name)
+    taxon = _sdrf_text(species.species_taxon)
+    if taxon and taxon.casefold().startswith("ncbitaxon:"):
+        return f"NT={name};AC={taxon}" if name else taxon
+    if taxon:
+        return f"NT={name};AC=NCBITaxon:{taxon}" if name else f"AC=NCBITaxon:{taxon}"
+    return name
+
+
+def _sdrf_file_row(acquired_file, instruments):
+    """Draft one editable SDRF row from an acquired file and its experiment."""
+    experiment = acquired_file.experiment
+    filename = _sdrf_text(acquired_file.filename)
+    if not filename and acquired_file.location:
+        filename = Path(acquired_file.location).name
+    stem = Path(filename).stem if filename else _sdrf_text(experiment.code if experiment else "")
+    instrument = instruments.get(acquired_file.instrument_initial)
+    instrument_name = normalize_instrument(_sdrf_text(
+        (instrument.model or instrument.name) if instrument else acquired_file.instrument_initial
+    ))
+
+    if experiment is None:
+        return {
+            "file_id": acquired_file.id,
+            "project_code": acquired_file.project_code,
+            "experiment_code": acquired_file.experiment_code or "",
+            "row": {
+                "source name": stem,
+                "characteristics[organism]": "",
+                "characteristics[organism part]": "",
+                "characteristics[biological replicate]": "",
+                "assay name": stem,
+                "technology type": SDRF_TECHNOLOGY_TYPE,
+                "comment[proteomics data acquisition method]": "",
+                "comment[label]": "",
+                "comment[instrument]": instrument_name,
+                "comment[cleavage agent details]": "",
+                "comment[fraction identifier]": "1",
+                "comment[technical replicate]": "1",
+                "comment[data file]": filename,
+            },
+            "optional": {
+                "comment[acquisition date]": (
+                    acquired_file.file_date.isoformat() if acquired_file.file_date else ""
+                ),
+            },
+        }
+
+    species_values = [_sdrf_organism(species) for species in experiment.species_list]
+    species_values = [value for value in species_values if value]
+    cell_line_names = [_sdrf_text(cell.cell_line_name) for cell in experiment.cell_lines]
+    cell_line_ids = [_sdrf_text(cell.cellosaurus_id) for cell in experiment.cell_lines]
+    label = _sdrf_text(
+        experiment.chemical_labelling or experiment.isotope_labeling_channel
+    )
+    row = {
+        "source name": _sdrf_text(experiment.name or experiment.code),
+        "characteristics[organism]": ";".join(species_values),
+        "characteristics[organism part]": _sdrf_text(experiment.tissue),
+        "characteristics[biological replicate]": _sdrf_text(experiment.replicate),
+        "assay name": stem,
+        "technology type": SDRF_TECHNOLOGY_TYPE,
+        "comment[proteomics data acquisition method]": "",
+        "comment[label]": label,
+        "comment[instrument]": instrument_name,
+        "comment[cleavage agent details]": _sdrf_text(experiment.digestion),
+        "comment[fraction identifier]": _sdrf_text(experiment.peptide_level_fraction) or "1",
+        "comment[technical replicate]": "1",
+        "comment[data file]": filename,
+    }
+    optional = {
+        "characteristics[project name]": _sdrf_text(experiment.project.name),
+        "characteristics[sample name]": _sdrf_text(experiment.name),
+        "characteristics[disease]": _sdrf_text(experiment.disease),
+        "characteristics[phenotype]": _sdrf_text(experiment.phenotype),
+        "characteristics[age]": " ".join(filter(None, [
+            _sdrf_text(experiment.organism_age), _sdrf_text(experiment.organism_age_unit)
+        ])),
+        "characteristics[sex]": _sdrf_text(experiment.organism_sex),
+        "characteristics[enrichment process]": _sdrf_text(experiment.enrichment_process),
+        "characteristics[synthetic peptide]": _sdrf_text(experiment.synthetic_peptide),
+        "characteristics[cell line]": ";".join(filter(None, cell_line_names)),
+        "characteristics[cellosaurus accession]": ";".join(filter(None, cell_line_ids)),
+        "comment[acquisition date]": acquired_file.file_date.isoformat() if acquired_file.file_date else "",
+        "comment[quenching reagent]": _sdrf_text(experiment.quenching_reagent),
+    }
+    return {
+        "file_id": acquired_file.id,
+        "project_code": acquired_file.project_code,
+        "experiment_code": acquired_file.experiment_code,
+        "row": row,
+        "optional": optional,
+    }
+
+
+@app.route("/sdrf")
+def sdrf_editor():
+    projects = Project.query.order_by(Project.name, Project.code).all()
+    optional_headers = [
+        header for header in KNOWN_SDRF_HEADERS
+        if header not in SDRF_REQUIRED_HEADERS
+        and header not in SDRF_AUTOMATIC_COLUMNS
+    ]
+    optional_groups = defaultdict(list)
+    for header in optional_headers:
+        optional_groups[column_group(header)].append(header)
+    return render_template(
+        "sdrf/editor.html",
+        projects=projects,
+        required_headers=SDRF_REQUIRED_HEADERS,
+        optional_groups=dict(optional_groups),
+        initial_project=request.args.get("project", ""),
+        technology_type=SDRF_TECHNOLOGY_TYPE,
+        acquisition_terms=ACQUISITION_METHODS,
+        instrument_terms=INSTRUMENT_MODELS,
+        automatic_columns=SDRF_AUTOMATIC_COLUMNS,
+    )
+
+
+@app.route("/api/sdrf/project-files")
+def api_sdrf_project_files():
+    project_code = request.args.get("project", "").strip()
+    if not project_code:
+        abort(400, "project is required")
+    if db.session.get(Project, project_code) is None:
+        abort(404, "Project not found")
+    files = (
+        AcquiredFile.query.options(
+            joinedload(AcquiredFile.experiment).joinedload(Experiment.project),
+            joinedload(AcquiredFile.experiment).joinedload(Experiment.species_list),
+            joinedload(AcquiredFile.experiment).joinedload(Experiment.cell_lines),
+        )
+        .filter(AcquiredFile.project_code == project_code)
+        .order_by(
+            AcquiredFile.experiment_code,
+            AcquiredFile.file_date,
+            AcquiredFile.filename,
+        )
+        .all()
+    )
+    experiments = (
+        Experiment.query.filter_by(project_code=project_code)
+        .order_by(Experiment.name, Experiment.code)
+        .all()
+    )
+    file_counts = defaultdict(int)
+    for acquired_file in files:
+        file_counts[acquired_file.experiment_code] += 1
+    instruments = {item.initial: item for item in Instrument.query.all()}
+    return jsonify({
+        "experiments": [
+            {
+                "code": experiment.code,
+                "name": experiment.name,
+                "file_count": file_counts[experiment.code],
+            }
+            for experiment in experiments
+        ],
+        "files": [_sdrf_file_row(acquired_file, instruments) for acquired_file in files],
+    })
 
 
 @app.route("/api/tree")

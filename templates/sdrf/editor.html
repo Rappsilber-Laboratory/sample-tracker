@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}SDRF Export{% endblock %}
+{% block content %}
+<section class="sdrf-page" id="sdrf-app"
+         data-initial-project="{{ initial_project }}"
+         data-technology-type="{{ technology_type }}">
+  <div class="sdrf-title-row">
+    <div>
+      <h2>SDRF Export</h2>
+      <p class="sdrf-lead">Choose tracked files or files from your computer, complete the required metadata, then export a tab-separated SDRF file.</p>
+    </div>
+    <div class="sdrf-status" id="sdrf-status" role="status" aria-live="polite">No files loaded</div>
+  </div>
+
+  <div class="sdrf-source-card">
+    <div class="sdrf-source-tabs" role="tablist" aria-label="File source">
+      <button type="button" class="sdrf-source-tab active" id="source-db-tab" data-source="database" role="tab" aria-selected="true">From sample tracker</button>
+      <button type="button" class="sdrf-source-tab" id="source-local-tab" data-source="local" role="tab" aria-selected="false">From this computer</button>
+    </div>
+
+    <div id="source-database" class="sdrf-source-panel" role="tabpanel" aria-labelledby="source-db-tab">
+      <div class="sdrf-filters">
+        <label>Project
+          <select id="sdrf-project">
+            <option value="">Select a project…</option>
+            {% for project in projects %}
+              <option value="{{ project.code }}">{{ project.code }} — {{ project.name }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label>Experiment
+          <select id="sdrf-experiment" disabled><option value="">All experiments</option></select>
+        </label>
+      </div>
+      <div id="sdrf-file-picker" class="sdrf-file-picker sdrf-empty">Select a project to see its acquired files.</div>
+      <div class="sdrf-picker-actions">
+        <button type="button" id="sdrf-select-all" disabled>Select visible</button>
+        <button type="button" id="sdrf-clear-selection" disabled>Clear selection</button>
+        <button type="button" id="sdrf-load-database" disabled>Use selected files</button>
+      </div>
+    </div>
+
+    <div id="source-local" class="sdrf-source-panel" role="tabpanel" aria-labelledby="source-local-tab" hidden>
+      <label class="sdrf-drop-zone" id="sdrf-drop-zone">
+        <span><strong>Choose files</strong> or drag them here</span>
+        <small>RAW, mzML, MGF, or any other acquired-data files; multiple selection is supported.</small>
+        <input type="file" id="sdrf-local-files" multiple>
+      </label>
+    </div>
+  </div>
+
+  <div class="sdrf-toolbar">
+    <div class="sdrf-add-column">
+      <label for="sdrf-column-search">Optional columns</label>
+      <input type="search" id="sdrf-column-search" placeholder="Search terms or type factor value[…]" autocomplete="off">
+      <select id="sdrf-column-select" aria-label="Optional SDRF column">
+        <option value="">Choose a column…</option>
+        {% for group, headers in optional_groups.items() %}
+          <optgroup label="{{ group }}">
+            {% for header in headers %}<option value="{{ header }}">{{ header }}</option>{% endfor %}
+          </optgroup>
+        {% endfor %}
+      </select>
+      <button type="button" id="sdrf-add-column-button">+ Add column</button>
+    </div>
+    <div class="sdrf-table-actions">
+      <button type="button" id="sdrf-copy-table">Copy table</button>
+      <button type="button" id="sdrf-export" class="sdrf-primary">Export .sdrf.tsv</button>
+    </div>
+  </div>
+
+  <p class="sdrf-help">Required columns are marked <span class="sdrf-required-mark">Required</span>. Click any cell to edit it. You can paste a block copied from Excel or another spreadsheet directly into the table. For an experimental factor, type a header such as <code>factor value[treatment]</code> and add it. SDRF annotation tool, version, and template columns are added automatically on export.</p>
+  <p class="sdrf-help sdrf-term-guidance"><strong>What should I enter for controlled terms?</strong> Acquisition method: <code>DDA</code>, <code>DIA</code>, <code>PRM</code>, or <code>SRM</code>. Instrument: the exact model, such as <code>Orbitrap Fusion Lumos</code> or <code>Q Exactive HF-X</code>. Recognized values are converted automatically to <code>NT=…;AC=…</code>.</p>
+  <div id="sdrf-errors" class="sdrf-errors" role="alert" hidden></div>
+
+  <div class="sdrf-table-wrap">
+    <table id="sdrf-table" class="sdrf-table">
+      <thead><tr id="sdrf-head-row">
+        <th class="sdrf-row-number">#</th>
+        {% for header in required_headers %}
+          <th data-header="{{ header }}">
+            <span>{{ header }}</span><small>Required</small>
+            <button type="button" class="sdrf-apply-column" data-apply-column="{{ header }}">Apply to files…</button>
+          </th>
+        {% endfor %}
+        <th class="sdrf-row-action">Remove</th>
+      </tr></thead>
+      <tbody id="sdrf-table-body">
+        <tr class="sdrf-placeholder"><td colspan="{{ required_headers|length + 2 }}">Load one or more files to start editing.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <dialog id="sdrf-apply-dialog" class="sdrf-apply-dialog">
+    <div class="sdrf-dialog-title">
+      <h3>Apply value to multiple files</h3>
+      <button type="button" id="sdrf-apply-close" aria-label="Close">×</button>
+    </div>
+    <p>Column: <code id="sdrf-apply-header"></code></p>
+    <label for="sdrf-apply-value">Value</label>
+    <input type="text" id="sdrf-apply-value" autocomplete="off">
+    <p class="sdrf-dialog-hint" id="sdrf-apply-hint"></p>
+    <div class="sdrf-dialog-selection-actions">
+      <button type="button" id="sdrf-apply-select-all">Select all</button>
+      <button type="button" id="sdrf-apply-clear-all">Clear</button>
+    </div>
+    <div id="sdrf-apply-files" class="sdrf-apply-files"></div>
+    <div class="sdrf-dialog-actions">
+      <button type="button" id="sdrf-apply-cancel">Cancel</button>
+      <button type="button" id="sdrf-apply-confirm" class="sdrf-primary">Apply to selected files</button>
+    </div>
+  </dialog>
+
+  <script type="application/json" id="sdrf-required-headers">{{ required_headers | list | tojson }}</script>
+  <script type="application/json" id="sdrf-acquisition-terms">{{ acquisition_terms | tojson }}</script>
+  <script type="application/json" id="sdrf-instrument-terms">{{ instrument_terms | tojson }}</script>
+  <script type="application/json" id="sdrf-automatic-columns">{{ automatic_columns | tojson }}</script>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/sdrf-editor.js') }}" defer></script>
+{% endblock %}
