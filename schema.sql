@@ -59,9 +59,6 @@ CREATE TABLE experiment (
     uv_time_in_seconds REAL,
     uv_wavelength_in_nanometers REAL,
 
-    -- IdentificationExperiment columns (used when crosslinking_experiment = 0)
-    peptide_level_fraction TEXT,
-
     PRIMARY KEY (project_code, code)
 );
 

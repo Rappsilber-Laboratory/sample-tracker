@@ -302,7 +302,7 @@ def _sdrf_file_row(acquired_file, instruments):
         "comment[label]": label,
         "comment[instrument]": instrument_name,
         "comment[cleavage agent details]": _sdrf_text(experiment.digestion),
-        "comment[fraction identifier]": _sdrf_text(experiment.peptide_level_fraction) or "1",
+        "comment[fraction identifier]": "1",
         "comment[technical replicate]": "1",
         "comment[data file]": filename,
     }
@@ -1065,7 +1065,7 @@ def _coerce_select_fields(experiment):
 
 
 def _nullify_crosslink_fields(experiment):
-    """Clear crosslink fields for an identification experiment, and vice versa."""
+    """Clear crosslink fields for a non-crosslinking experiment."""
     crosslink_fields = [
         "crosslinker", "crosslinking_type",
         "protein_or_cell_concentration", "protein_or_cell_concentration_unit",
@@ -1075,12 +1075,8 @@ def _nullify_crosslink_fields(experiment):
         "quenching_reagent", "uv_source", "uv_time_in_seconds",
         "uv_wavelength_in_nanometers",
     ]
-    identification_fields = ["peptide_level_fraction"]
 
-    if experiment.crosslinking_experiment == 1:
-        for f in identification_fields:
-            setattr(experiment, f, None)
-    else:
+    if experiment.crosslinking_experiment != 1:
         for f in crosslink_fields:
             setattr(experiment, f, None)
 

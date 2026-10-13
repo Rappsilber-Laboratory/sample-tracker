@@ -93,12 +93,6 @@
   <details id="invariant-conditions">
     <summary>Invariant Conditions</summary>
 
-    <div id="identification-fields">
-      <fieldset>
-        <p>{{ render_field(form.peptide_level_fraction) }}</p>
-      </fieldset>
-    </div>
-
     <details>
       <summary>Species</summary>
       <fieldset>
@@ -200,14 +194,11 @@
   function toggleExperimentFields() {
     const cb = document.getElementById('crosslinking_experiment');
     const crosslinkFields = document.getElementById('crosslink-fields');
-    const identificationFields = document.getElementById('identification-fields');
     if (cb.checked) {
       crosslinkFields.style.display = '';
       crosslinkFields.open = true;
-      identificationFields.style.display = 'none';
     } else {
       crosslinkFields.style.display = 'none';
-      identificationFields.style.display = '';
     }
   }
   document.getElementById('crosslinking_experiment').addEventListener('change', toggleExperimentFields);

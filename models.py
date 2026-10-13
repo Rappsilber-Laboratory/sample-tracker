@@ -94,9 +94,6 @@ class Experiment(db.Model):
     uv_time_in_seconds = db.Column(db.Float)
     uv_wavelength_in_nanometers = db.Column(db.Float)
 
-    # IdentificationExperiment columns (crosslinking_experiment = 0)
-    peptide_level_fraction = db.Column(db.Text)
-
     # Polymorphic identity
     __mapper_args__ = {
         "polymorphic_on": crosslinking_experiment,

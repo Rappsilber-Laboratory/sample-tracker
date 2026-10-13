@@ -132,11 +132,6 @@ class ExperimentForm(FlaskForm):
         "UV Wavelength (nm)", validators=[Optional()]
     )
 
-    # Identification fields
-    peptide_level_fraction = StringField(
-        "Peptide Level Fraction", validators=[Optional()]
-    )
-
     # Many-to-many
     species_ids = MultiCheckboxField("Species", coerce=int)
     cellosaurus_ids = MultiCheckboxField("Cell Lines", coerce=str)
