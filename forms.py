@@ -2,6 +2,7 @@ from flask_wtf import FlaskForm
 from wtforms import (
     BooleanField,
     FloatField,
+    HiddenField,
     IntegerField,
     SelectField,
     SelectMultipleField,
@@ -24,6 +25,11 @@ def valid_code(form, field):
 CODE_RENDER_KW = {"maxlength": 8, "pattern": "[A-Za-z0-9]+"}
 
 
+class MultiCheckboxField(SelectMultipleField):
+    widget = widgets.ListWidget(prefix_label=False)
+    option_widget = widgets.CheckboxInput()
+
+
 class ProjectForm(FlaskForm):
     code = StringField(
         "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
@@ -39,49 +45,12 @@ class ExperimentForm(FlaskForm):
     code = StringField(
         "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
     )
-    name = StringField("Name", validators=[DataRequired()])
-    description = TextAreaField("Description", validators=[DataRequired()])
-    user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
+    name = StringField("Name", validators=[Optional()])
+    description = TextAreaField("Description", validators=[Optional()])
+    user_initials = SelectField("Contact Person", validators=[Optional()], coerce=str)
     active = BooleanField("Active", default=True)
 
-
-class SpeciesForm(FlaskForm):
-    species_name = StringField("Species Name", validators=[DataRequired()])
-    species_taxon = StringField("Species Taxon", validators=[DataRequired()])
-
-
-class MultiCheckboxField(SelectMultipleField):
-    widget = widgets.ListWidget(prefix_label=False)
-    option_widget = widgets.CheckboxInput()
-
-
-class VirusForm(FlaskForm):
-    name = StringField("Name", validators=[DataRequired()])
-    species_id = SelectField("Species", coerce=int, validators=[Optional()])
-    variant = StringField("Variant", validators=[Optional()])
-
-
-class CellLineForm(FlaskForm):
-    cellosaurus_id = StringField("Cellosaurus ID", validators=[DataRequired()])
-    cell_line_name = StringField("Cell Line Name", validators=[DataRequired()])
-    species_id = SelectField("Species", coerce=int, validators=[DataRequired()])
-    virus_ids = MultiCheckboxField("Viruses", coerce=int)
-
-
-class UserForm(FlaskForm):
-    name = StringField("Name", validators=[DataRequired()])
-    initials = StringField("Initials", validators=[DataRequired()])
-    active = BooleanField("Active", default=True)
-
-
-class MassSpecSampleForm(FlaskForm):
-    experiment_code = SelectField("Experiment", coerce=str, validators=[DataRequired()])
-    code = StringField(
-        "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
-    )
-    name = StringField("Name", validators=[DataRequired()])
-    description = TextAreaField("Description", validators=[DataRequired()])
-    user_initials = SelectField("Contact Person", coerce=str, validators=[DataRequired()])
+    # Invariant conditions defined on the experiment.
     disease = StringField("Disease", validators=[Optional()])
     phenotype = StringField("Phenotype", validators=[Optional()])
     isotope_labeling_channel = StringField(
@@ -104,7 +73,7 @@ class MassSpecSampleForm(FlaskForm):
     protein_isolation_or_fractionation = StringField(
         "Protein Isolation / Fractionation", validators=[Optional()]
     )
-    crosslinked_sample = BooleanField("Crosslinked Sample", default=False)
+    crosslinking_experiment = BooleanField("Crosslinking Experiment", default=False)
     quantitation = BooleanField("Quantitation", default=False)
     quantitation_scheme = StringField("Quantitation Scheme", validators=[Optional()])
     quantitation_method = SelectField(
@@ -172,21 +141,74 @@ class MassSpecSampleForm(FlaskForm):
     species_ids = MultiCheckboxField("Species", coerce=int)
     cellosaurus_ids = MultiCheckboxField("Cell Lines", coerce=str)
 
-    def validate_protein_or_cell_concentration(self, field):
-        if self.crosslinked_sample.data and field.data is None:
-            raise ValidationError('Required for crosslinked samples.')
+    # Variable conditions: the editable table serialised to JSON by the browser
+    # (an array of {description, prefix, values, postfix} rows). Parsed on save.
+    varying_conditions = HiddenField()
 
-    def validate_protein_or_cell_concentration_unit(self, field):
-        if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
-            raise ValidationError('Required for crosslinked samples — enter a real unit.')
+    # Transient generation inputs (not persisted to the experiment) — used only
+    # by "Save and Generate Queue" to build the run filenames/CSV. Choices for
+    # the two selects are populated per-request in the route.
+    gen_instrument = SelectField(
+        "Instrument", coerce=str, validators=[Optional()], validate_choice=False
+    )
+    gen_user = SelectField(
+        "Operator", coerce=str, validators=[Optional()], validate_choice=False
+    )
+    gen_date = StringField("Date", validators=[Optional()], render_kw={"type": "date"})
+    gen_run_start = IntegerField("Run number start", default=1, validators=[Optional()])
 
-    def validate_crosslinker_or_compound_concentration(self, field):
-        if self.crosslinked_sample.data and field.data is None:
-            raise ValidationError('Required for crosslinked samples.')
+    # Well-plate options (also transient generation inputs). well_enable is the
+    # master switch; the two include_* toggles decide where the well/plate lands.
+    well_enable = BooleanField("Use 96-well plate")
+    well_order = SelectField(
+        "Well order",
+        choices=[("rowwise", "Row-wise"), ("columnwise", "Column-wise")],
+        default="rowwise",
+        validators=[Optional()],
+    )
+    well_start = StringField("Start position", default="A1", validators=[Optional()])
+    well_in_filename = BooleanField("Add well to end of filename")
+    well_in_position = BooleanField("Put well in Position column")
 
-    def validate_crosslinker_or_compound_concentration_unit(self, field):
-        if self.crosslinked_sample.data and (not field.data or field.data.strip() == 'N/A'):
-            raise ValidationError('Required for crosslinked samples — enter a real unit.')
+
+class ExperimentCreateForm(FlaskForm):
+    # The create page asks only for the code (the primary key). Everything else is
+    # filled in afterwards on the autosaving edit page. The optional "base on an
+    # existing experiment" <select name="copy_from"> is rendered manually and read
+    # straight from request.form (its options are grouped composite-key tokens).
+    code = StringField(
+        "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
+    )
+
+
+class InstrumentForm(FlaskForm):
+    initial = StringField("Initial", validators=[DataRequired()])
+    name = StringField("Name", validators=[DataRequired()])
+    model = StringField("Model", validators=[Optional()])
+
+
+class SpeciesForm(FlaskForm):
+    species_name = StringField("Species Name", validators=[DataRequired()])
+    species_taxon = StringField("Species Taxon", validators=[DataRequired()])
+
+
+class VirusForm(FlaskForm):
+    name = StringField("Name", validators=[DataRequired()])
+    species_id = SelectField("Species", coerce=int, validators=[Optional()])
+    variant = StringField("Variant", validators=[Optional()])
+
+
+class CellLineForm(FlaskForm):
+    cellosaurus_id = StringField("Cellosaurus ID", validators=[DataRequired()])
+    cell_line_name = StringField("Cell Line Name", validators=[DataRequired()])
+    species_id = SelectField("Species", coerce=int, validators=[DataRequired()])
+    virus_ids = MultiCheckboxField("Viruses", coerce=int)
+
+
+class UserForm(FlaskForm):
+    name = StringField("Name", validators=[DataRequired()])
+    initials = StringField("Initials", validators=[DataRequired()])
+    active = BooleanField("Active", default=True)
 
 
 class AcquiredFileForm(FlaskForm):
@@ -213,14 +235,11 @@ def _optional_str(value):
 
 
 class AcquiredFileEditForm(FlaskForm):
-    # validate_choice=False: the experiment/sample option lists are populated
-    # client-side from an embedded tree, so any code present in the DB is valid.
+    # validate_choice=False: the experiment option list is populated client-side
+    # from an embedded tree, so any code present in the DB is valid.
     project_code = SelectField(
         "Project", coerce=_optional_str, validators=[Optional()], validate_choice=False
     )
     experiment_code = SelectField(
         "Experiment", coerce=_optional_str, validators=[Optional()], validate_choice=False
-    )
-    sample_code = SelectField(
-        "Sample", coerce=_optional_str, validators=[Optional()], validate_choice=False
     )

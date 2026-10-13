@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="csrf-token" content="{{ csrf_token() }}">
-  <title>{% block title %}Mass Spec Acquisition Tracker{% endblock %}</title>
+  <title>{% block title %}File Acquisition Database{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='simple.css') }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
@@ -13,12 +13,13 @@
     <nav>
       <a href="{{ url_for('project_list') }}">{{ nav_counts.get('projects', '') }} Projects</a>
       <a href="{{ url_for('experiment_list') }}">{{ nav_counts.get('experiments', '') }} Experiments</a>
-      <a href="{{ url_for('sample_list') }}">{{ nav_counts.get('samples', '') }} Samples</a>
       <a href="{{ url_for('species_list') }}">{{ nav_counts.get('species', '') }} Species</a>
       <a href="{{ url_for('cell_line_list') }}">{{ nav_counts.get('cell_lines', '') }} Cell Lines</a>
       <a href="{{ url_for('virus_list') }}">{{ nav_counts.get('viruses', '') }} Viruses</a>
       <a href="{{ url_for('file_list') }}">{{ nav_counts.get('files', '') }} Files</a>
+      <a href="{{ url_for('instrument_list') }}">{{ nav_counts.get('instruments', '') }} Instruments</a>
       <a href="{{ url_for('user_list') }}">{{ nav_counts.get('users', '') }} Users</a>
+      <a href="{{ url_for('sdrf_editor') }}">SDRF Export</a>
 {#      <a href="{{ url_for('instrument_usage') }}">Instrument Usage</a>#}
 {#      <a href="{{ url_for('disk_usage') }}">Disk Usage</a>#}
 {#      <a href="{{ url_for('about') }}">About</a>#}
@@ -35,27 +36,7 @@
     {% block content %}{% endblock %}
   </main>
 
-  <aside id="queue-panel" class="queue-panel" aria-label="Queued files">
-    <div id="queue-resize" class="queue-resize" title="Drag to resize"></div>
-    <div class="queue-header">
-      <button type="button" id="queue-toggle" class="queue-toggle" aria-expanded="true">▼ Queued Files</button>
-      <span class="queue-date-controls">
-        Date:
-        <button type="button" data-queue-day="today">Today</button>
-        <button type="button" data-queue-day="tomorrow">Tomorrow</button>
-        <input type="date" id="queue-date">
-      </span>
-      <span class="queue-actions">
-        <button type="button" id="queue-add-blank">+ BLANK-AND-CLEANING</button>
-        <button type="button" id="queue-export">Export sequence CSV</button>
-        <button type="button" id="queue-clear">Clear queue</button>
-      </span>
-    </div>
-    <div id="queue-tabs" class="queue-tabs"></div>
-    <div id="queue-body" class="queue-body"></div>
-  </aside>
-
   {% block scripts %}{% endblock %}
-  <script src="{{ url_for('static', filename='js/queue-panel.js') }}" defer></script>
+  <script src="{{ url_for('static', filename='js/autosave.js') }}" defer></script>
 </body>
 </html>

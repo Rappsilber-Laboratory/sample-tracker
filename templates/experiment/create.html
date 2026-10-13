@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}New Experiment{% endblock %}
+{% block content %}
+<h2>New Experiment</h2>
+<p><a href="{{ cancel_url }}">Cancel</a></p>
+
+<form method="post">
+  {{ form.hidden_tag() }}
+  <p><strong>Project:</strong> {{ project.code }} — {{ project.name }}</p>
+  <p>{{ render_field(form.code) }}
+    <small class="field-warning">⚠ The code cannot be changed after creation.</small>
+  </p>
+
+  {% set ns = namespace(has_copy=false) %}
+  {% for group_label, options in copy_experiments %}{% if options %}{% set ns.has_copy = true %}{% endif %}{% endfor %}
+  <div class="vc-gen-inputs">
+    <button type="submit">Create</button>
+    {% if ns.has_copy %}
+    <span>
+      <label for="copy_from">Base on existing experiment</label>
+      <select id="copy_from" name="copy_from">
+        <option value="">— none —</option>
+        {% for group_label, options in copy_experiments %}
+          {% if options %}
+          <optgroup label="{{ group_label }}">
+            {% for token, label in options %}
+            <option value="{{ token }}">{{ label }}</option>
+            {% endfor %}
+          </optgroup>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </span>
+    {% endif %}
+  </div>
+  <small class="field-hint">Everything else is filled in on the next page, which saves
+    automatically as you type. "Base on existing" copies the chosen experiment's values (except
+    Code and Name), including its variable and invariant conditions.</small>
+</form>
+{% endblock %}

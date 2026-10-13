@@ -1,15 +1,18 @@
 import csv
 import io
+import itertools
+import json
 import os
 import re
 import sqlite3
-from datetime import date, datetime
+from datetime import date
+from pathlib import Path
 
 import click
 from collections import defaultdict
 
 from flask import Flask, Response, abort, flash, jsonify, redirect, render_template, request, url_for
-from sqlalchemy import event, func
+from sqlalchemy import event, func, inspect as sa_inspect
 from sqlalchemy.engine import Engine
 from sqlalchemy.exc import IntegrityError
 from flask_wtf import CSRFProtect
@@ -19,9 +22,10 @@ from config import Config
 from forms import (
     CellLineForm,
     ExperimentForm,
+    ExperimentCreateForm,
     AcquiredFileEditForm,
     AcquiredFileForm,
-    MassSpecSampleForm,
+    InstrumentForm,
     ProjectForm,
     SpeciesForm,
     UserForm,
@@ -29,17 +33,25 @@ from forms import (
 )
 from models import (
     CellLine,
-    CrosslinkSample,
+    CrosslinkingExperiment,
     Experiment,
     AcquiredFile,
-    IdentificationSample,
-    MassSpecSample,
+    IdentificationExperiment,
+    Instrument,
     Project,
-    QueuedFile,
     Species,
     User,
     Virus,
     db,
+)
+from sdrf_support.sdrf_columns import KNOWN_SDRF_HEADERS, column_group
+from sdrf_support.sdrf_export import (
+    ACQUISITION_METHODS,
+    INSTRUMENT_MODELS,
+    SDRF_ANNOTATION_TOOL,
+    SDRF_TEMPLATE,
+    SDRF_VERSION,
+    normalize_instrument,
 )
 
 app = Flask(__name__)
@@ -62,13 +74,13 @@ def _configure_sqlite_connection(dbapi_connection, connection_record):
 # ---------------------------------------------------------------------------
 # Composite-key encoding for SelectField values
 # A bare code is no longer unique, so dropdown values that identify an
-# experiment or sample encode the full parent chain, joined by \x1f (a char
-# that never appears in a code).
+# experiment encode the full parent chain, joined by \x1f (a char that never
+# appears in a code).
 # ---------------------------------------------------------------------------
 TOKEN_SEP = "\x1f"
 
-# Project holding commonly-used template samples, offered as copy sources from
-# any project's new-sample form.
+# Project holding commonly-used template experiments, offered as copy sources when
+# creating a new experiment (in addition to the current project's experiments).
 FAV_PROJECT_CODE = "FAV"
 
 
@@ -76,22 +88,10 @@ def _exp_token(project_code, experiment_code):
     return f"{project_code}{TOKEN_SEP}{experiment_code}"
 
 
-def _sample_token(project_code, experiment_code, code):
-    return TOKEN_SEP.join([project_code, experiment_code, code])
-
-
 def _next_experiment_code(project_code):
     """Suggested code for a new experiment: 'E' + zero-padded (count + 1)."""
     n = Experiment.query.filter_by(project_code=project_code).count() + 1
     return f"E{n:02d}"
-
-
-def _next_sample_code(project_code, experiment_code):
-    """Suggested code for a new sample: 'S' + zero-padded (count + 1)."""
-    n = MassSpecSample.query.filter_by(
-        project_code=project_code, experiment_code=experiment_code
-    ).count() + 1
-    return f"S{n:02d}"
 
 
 def _commit_unique(form, field_name, what):
@@ -125,6 +125,18 @@ def _split_token(token):
     return tuple(token.split(TOKEN_SEP)) if token else ()
 
 
+def _is_autosave():
+    """True when the request is a background autosave POST (see autosave.js)."""
+    return request.headers.get("X-Autosave") == "1"
+
+
+def _autosave_json(form, saved):
+    """JSON body for an autosave POST: success, or the form's per-field errors."""
+    if saved:
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "errors": form.errors})
+
+
 @app.template_filter('wrap_code')
 def wrap_code_filter(s, code, marker, only_first=False):
     if not code or not s:
@@ -144,11 +156,11 @@ def inject_nav_counts():
     nav_models = {
         "projects": Project,
         "experiments": Experiment,
-        "samples": MassSpecSample,
         "species": Species,
         "cell_lines": CellLine,
         "viruses": Virus,
         "files": AcquiredFile,
+        "instruments": Instrument,
         "users": User,
     }
     try:
@@ -187,9 +199,208 @@ def index():
     return redirect(url_for("project_list"))
 
 
+# ---------------------------------------------------------------------------
+# SDRF metadata editor
+# ---------------------------------------------------------------------------
+SDRF_REQUIRED_HEADERS = (
+    "source name",
+    "characteristics[organism]",
+    "characteristics[organism part]",
+    "characteristics[biological replicate]",
+    "assay name",
+    "technology type",
+    "comment[proteomics data acquisition method]",
+    "comment[label]",
+    "comment[instrument]",
+    "comment[cleavage agent details]",
+    "comment[fraction identifier]",
+    "comment[technical replicate]",
+    "comment[data file]",
+)
+
+SDRF_TECHNOLOGY_TYPE = "proteomic profiling by mass spectrometry"
+SDRF_AUTOMATIC_COLUMNS = {
+    "comment[sdrf annotation tool]": SDRF_ANNOTATION_TOOL,
+    "comment[sdrf version]": SDRF_VERSION,
+    "comment[sdrf template]": SDRF_TEMPLATE,
+}
+
+
+def _sdrf_text(value):
+    """Return a safe, single-line SDRF cell value."""
+    if value is None:
+        return ""
+    return str(value).replace("\t", " ").replace("\r", " ").replace("\n", " ").strip()
+
+
+def _sdrf_organism(species):
+    if not species:
+        return ""
+    name = _sdrf_text(species.species_name)
+    taxon = _sdrf_text(species.species_taxon)
+    if taxon and taxon.casefold().startswith("ncbitaxon:"):
+        return f"NT={name};AC={taxon}" if name else taxon
+    if taxon:
+        return f"NT={name};AC=NCBITaxon:{taxon}" if name else f"AC=NCBITaxon:{taxon}"
+    return name
+
+
+def _sdrf_file_row(acquired_file, instruments):
+    """Draft one editable SDRF row from an acquired file and its experiment."""
+    experiment = acquired_file.experiment
+    filename = _sdrf_text(acquired_file.filename)
+    if not filename and acquired_file.location:
+        filename = Path(acquired_file.location).name
+    stem = Path(filename).stem if filename else _sdrf_text(experiment.code if experiment else "")
+    instrument = instruments.get(acquired_file.instrument_initial)
+    instrument_name = normalize_instrument(_sdrf_text(
+        (instrument.model or instrument.name) if instrument else acquired_file.instrument_initial
+    ))
+
+    if experiment is None:
+        return {
+            "file_id": acquired_file.id,
+            "project_code": acquired_file.project_code,
+            "experiment_code": acquired_file.experiment_code or "",
+            "row": {
+                "source name": stem,
+                "characteristics[organism]": "",
+                "characteristics[organism part]": "",
+                "characteristics[biological replicate]": "",
+                "assay name": stem,
+                "technology type": SDRF_TECHNOLOGY_TYPE,
+                "comment[proteomics data acquisition method]": "",
+                "comment[label]": "",
+                "comment[instrument]": instrument_name,
+                "comment[cleavage agent details]": "",
+                "comment[fraction identifier]": "1",
+                "comment[technical replicate]": "1",
+                "comment[data file]": filename,
+            },
+            "optional": {
+                "comment[acquisition date]": (
+                    acquired_file.file_date.isoformat() if acquired_file.file_date else ""
+                ),
+            },
+        }
+
+    species_values = [_sdrf_organism(species) for species in experiment.species_list]
+    species_values = [value for value in species_values if value]
+    cell_line_names = [_sdrf_text(cell.cell_line_name) for cell in experiment.cell_lines]
+    cell_line_ids = [_sdrf_text(cell.cellosaurus_id) for cell in experiment.cell_lines]
+    label = _sdrf_text(
+        experiment.chemical_labelling or experiment.isotope_labeling_channel
+    )
+    row = {
+        "source name": _sdrf_text(experiment.name or experiment.code),
+        "characteristics[organism]": ";".join(species_values),
+        "characteristics[organism part]": _sdrf_text(experiment.tissue),
+        "characteristics[biological replicate]": _sdrf_text(experiment.replicate),
+        "assay name": stem,
+        "technology type": SDRF_TECHNOLOGY_TYPE,
+        "comment[proteomics data acquisition method]": "",
+        "comment[label]": label,
+        "comment[instrument]": instrument_name,
+        "comment[cleavage agent details]": _sdrf_text(experiment.digestion),
+        "comment[fraction identifier]": _sdrf_text(experiment.peptide_level_fraction) or "1",
+        "comment[technical replicate]": "1",
+        "comment[data file]": filename,
+    }
+    optional = {
+        "characteristics[project name]": _sdrf_text(experiment.project.name),
+        "characteristics[sample name]": _sdrf_text(experiment.name),
+        "characteristics[disease]": _sdrf_text(experiment.disease),
+        "characteristics[phenotype]": _sdrf_text(experiment.phenotype),
+        "characteristics[age]": " ".join(filter(None, [
+            _sdrf_text(experiment.organism_age), _sdrf_text(experiment.organism_age_unit)
+        ])),
+        "characteristics[sex]": _sdrf_text(experiment.organism_sex),
+        "characteristics[enrichment process]": _sdrf_text(experiment.enrichment_process),
+        "characteristics[synthetic peptide]": _sdrf_text(experiment.synthetic_peptide),
+        "characteristics[cell line]": ";".join(filter(None, cell_line_names)),
+        "characteristics[cellosaurus accession]": ";".join(filter(None, cell_line_ids)),
+        "comment[acquisition date]": acquired_file.file_date.isoformat() if acquired_file.file_date else "",
+        "comment[quenching reagent]": _sdrf_text(experiment.quenching_reagent),
+    }
+    return {
+        "file_id": acquired_file.id,
+        "project_code": acquired_file.project_code,
+        "experiment_code": acquired_file.experiment_code,
+        "row": row,
+        "optional": optional,
+    }
+
+
+@app.route("/sdrf")
+def sdrf_editor():
+    projects = Project.query.order_by(Project.name, Project.code).all()
+    optional_headers = [
+        header for header in KNOWN_SDRF_HEADERS
+        if header not in SDRF_REQUIRED_HEADERS
+        and header not in SDRF_AUTOMATIC_COLUMNS
+    ]
+    optional_groups = defaultdict(list)
+    for header in optional_headers:
+        optional_groups[column_group(header)].append(header)
+    return render_template(
+        "sdrf/editor.html",
+        projects=projects,
+        required_headers=SDRF_REQUIRED_HEADERS,
+        optional_groups=dict(optional_groups),
+        initial_project=request.args.get("project", ""),
+        technology_type=SDRF_TECHNOLOGY_TYPE,
+        acquisition_terms=ACQUISITION_METHODS,
+        instrument_terms=INSTRUMENT_MODELS,
+        automatic_columns=SDRF_AUTOMATIC_COLUMNS,
+    )
+
+
+@app.route("/api/sdrf/project-files")
+def api_sdrf_project_files():
+    project_code = request.args.get("project", "").strip()
+    if not project_code:
+        abort(400, "project is required")
+    if db.session.get(Project, project_code) is None:
+        abort(404, "Project not found")
+    files = (
+        AcquiredFile.query.options(
+            joinedload(AcquiredFile.experiment).joinedload(Experiment.project),
+            joinedload(AcquiredFile.experiment).joinedload(Experiment.species_list),
+            joinedload(AcquiredFile.experiment).joinedload(Experiment.cell_lines),
+        )
+        .filter(AcquiredFile.project_code == project_code)
+        .order_by(
+            AcquiredFile.experiment_code,
+            AcquiredFile.file_date,
+            AcquiredFile.filename,
+        )
+        .all()
+    )
+    experiments = (
+        Experiment.query.filter_by(project_code=project_code)
+        .order_by(Experiment.name, Experiment.code)
+        .all()
+    )
+    file_counts = defaultdict(int)
+    for acquired_file in files:
+        file_counts[acquired_file.experiment_code] += 1
+    instruments = {item.initial: item for item in Instrument.query.all()}
+    return jsonify({
+        "experiments": [
+            {
+                "code": experiment.code,
+                "name": experiment.name,
+                "file_count": file_counts[experiment.code],
+            }
+            for experiment in experiments
+        ],
+        "files": [_sdrf_file_row(acquired_file, instruments) for acquired_file in files],
+    })
+
+
 @app.route("/api/tree")
 def api_tree():
-    def file_nodes(sample):
+    def file_nodes(experiment):
         nodes = [
             {
                 "id": f.id,
@@ -198,21 +409,13 @@ def api_tree():
                 "total_bytes": int(f.size_bytes or 0),
                 "url": url_for("file_detail", id=f.id),
             }
-            for f in sample.acquired_files
+            for f in experiment.acquired_files
         ]
         nodes.sort(key=lambda n: n["total_bytes"], reverse=True)
         return nodes
 
-    def sample_node(s):
-        children = file_nodes(s)
-        total = sum(c["total_bytes"] for c in children)
-        return {"code": s.code, "name": s.name, "level": "sample", "total_bytes": total,
-                "url": url_for("sample_detail", project_code=s.project_code,
-                               experiment_code=s.experiment_code, code=s.code),
-                "children": children}
-
     def experiment_node(e):
-        children = sorted([sample_node(s) for s in e.samples], key=lambda n: n["total_bytes"], reverse=True)
+        children = file_nodes(e)
         total = sum(c["total_bytes"] for c in children)
         return {"id": e.code, "name": e.name, "level": "experiment", "total_bytes": total,
                 "url": url_for("experiment_detail", project_code=e.project_code, code=e.code),
@@ -227,7 +430,7 @@ def api_tree():
     projects = Project.query.filter_by(active=True).all()
     project_nodes = sorted([project_node(p) for p in projects], key=lambda n: n["total_bytes"], reverse=True)
     tree = {
-        "name": "Mass Spec Acquisition Tracker",
+        "name": "File Acquisition Database",
         "level": "root",
         "total_bytes": sum(n["total_bytes"] for n in project_nodes),
         "children": project_nodes,
@@ -246,17 +449,13 @@ def project_list():
     else:
         projects = Project.query.filter_by(active=True).order_by(Project.name).all()
     users = {u.initials: u.name for u in User.query.all()}
-    # One grouped aggregate per entity instead of a query per project. Samples
-    # and files carry project_code on their own composite key, so neither needs
-    # to join through Experiment. Projects with zero rows are simply absent from
-    # the result (the template defaults missing codes to 0).
+    # One grouped aggregate per entity instead of a query per project. Files
+    # carry project_code on their own composite key, so they don't need to join
+    # through Experiment. Projects with zero rows are simply absent from the
+    # result (the template defaults missing codes to 0).
     exp_counts = dict(
         db.session.query(Experiment.project_code, func.count())
         .group_by(Experiment.project_code).all()
-    )
-    sample_counts = dict(
-        db.session.query(MassSpecSample.project_code, func.count())
-        .group_by(MassSpecSample.project_code).all()
     )
     file_counts = dict(
         db.session.query(AcquiredFile.project_code, func.count())
@@ -264,7 +463,7 @@ def project_list():
     )
     return render_template(
         "project/list.html", projects=projects, show_archived=show_archived,
-        users=users, exp_counts=exp_counts, sample_counts=sample_counts, file_counts=file_counts
+        users=users, exp_counts=exp_counts, file_counts=file_counts
     )
 
 
@@ -291,15 +490,9 @@ def project_detail(code):
         else None
     )
     contact_name = contact_user.name if contact_user else project.user_initials
-    samples = (
-        MassSpecSample.query.join(Experiment)
-        .options(joinedload(MassSpecSample.experiment))
-        .filter(Experiment.project_code == code)
-        .order_by(MassSpecSample.name).all()
-    )
     files = (
-        AcquiredFile.query.join(MassSpecSample).join(Experiment)
-        .options(joinedload(AcquiredFile.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
+        AcquiredFile.query.join(Experiment)
+        .options(joinedload(AcquiredFile.experiment).joinedload(Experiment.project))
         .filter(Experiment.project_code == code)
         .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename).all()
     )
@@ -310,8 +503,7 @@ def project_detail(code):
             Experiment.code.label("experiment_code"),
             func.sum(AcquiredFile.size_bytes).label("total_bytes"),
         )
-        .join(AcquiredFile.sample)
-        .join(MassSpecSample.experiment)
+        .join(AcquiredFile.experiment)
         .filter(Experiment.project_code == code)
         .filter(AcquiredFile.file_date.isnot(None))
         .group_by(AcquiredFile.file_date, Experiment.code)
@@ -325,8 +517,8 @@ def project_detail(code):
     users = {u.initials: u.name for u in User.query.all()}
     return render_template(
         "project/detail.html", project=project, experiments=experiments,
-        contact_name=contact_name, samples=samples, files=files,
-        experiment_count=len(experiments), sample_count=len(samples),
+        contact_name=contact_name, files=files,
+        experiment_count=len(experiments),
         file_count=len(files), total_size_gb=total_size_gb, users=users,
         chart_data=chart_data,
     )
@@ -355,8 +547,12 @@ def project_edit(code):
     if form.validate_on_submit():
         form.populate_obj(project)
         db.session.commit()
+        if _is_autosave():
+            return _autosave_json(form, True)
         flash("Project updated.", "success")
         return redirect(url_for("project_detail", code=project.code))
+    if request.method == "POST" and _is_autosave():
+        return _autosave_json(form, False)
     if request.method == "POST":
         flash("Could not save — please check the fields below.", "error")
     return render_template("project/form.html", form=form, project=project)
@@ -390,90 +586,209 @@ def experiment_list():
     return render_template("experiment/list.html", experiments=experiments, users=users, show_archived=show_archived)
 
 
-@app.route("/projects/<project_code>/experiments/<code>")
+@app.route("/projects/<project_code>/experiments/<code>", methods=["GET", "POST"])
 def experiment_detail(project_code, code):
+    # The experiment's canonical page IS the editable form: you land here to view
+    # it, edit it, and generate a queue, all in one place (there's no separate
+    # read-only detail page).
     experiment = db.get_or_404(Experiment, (project_code, code))
-    samples = (
-        MassSpecSample.query
-        .filter_by(project_code=project_code, experiment_code=code)
-        .order_by(MassSpecSample.name).all()
-    )
-    files = (
-        AcquiredFile.query.join(MassSpecSample)
-        .options(joinedload(AcquiredFile.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
-        .filter(MassSpecSample.project_code == project_code, MassSpecSample.experiment_code == code)
-        .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename).all()
-    )
-    total_size_gb = sum(f.size_bytes or 0 for f in files) / 1e9
-    users = {u.initials: u.name for u in User.query.all()}
-    return render_template(
-        "experiment/detail.html", experiment=experiment, samples=samples, files=files,
-        sample_count=len(samples), file_count=len(files), total_size_gb=total_size_gb, users=users,
-    )
+    form = ExperimentForm(obj=experiment)
+    del form.code
+    # project_code is part of the primary key — re-parenting is not supported.
+    del form.project_code
+    form.user_initials.choices = _user_initials_choices()
+    form.species_ids.choices = _species_multi_choices()
+    form.cellosaurus_ids.choices = _cell_line_multi_choices()
+    form.gen_instrument.choices = _instrument_choices()
+    form.gen_user.choices = _user_initials_choices()
+    if request.method == "GET":
+        form.crosslinking_experiment.data = bool(experiment.crosslinking_experiment == 1)
+        form.quantitation.data = bool(experiment.quantitation)
+        form.species_ids.data = [s.id for s in experiment.species_list]
+        form.cellosaurus_ids.data = [cl.cellosaurus_id for cl in experiment.cell_lines]
+        form.varying_conditions.data = json.dumps(experiment.varying_conditions or [])
+        if experiment.user_initials:
+            form.gen_user.data = experiment.user_initials
+        form.gen_date.data = date.today().isoformat()
+    if form.validate_on_submit():
+        # Type (crosslinking vs identification) is editable here. Populate + nullify
+        # for the DESIRED type, but keep the in-session instance's discriminator at
+        # its current value for the flush (flushing a row whose column no longer
+        # matches its mapped subclass warns and may not refresh cleanly). The actual
+        # switch is a direct column update below; the row then reloads as the
+        # correct subclass on the next request.
+        desired = 1 if form.crosslinking_experiment.data else 0
+        current = experiment.crosslinking_experiment
+        _apply_experiment_conditions(form, experiment, desired)
+        if desired != current:
+            experiment.crosslinking_experiment = current
+        db.session.commit()
+        if desired != current:
+            db.session.query(Experiment).filter_by(
+                project_code=experiment.project_code, code=experiment.code
+            ).update({"crosslinking_experiment": desired}, synchronize_session=False)
+            db.session.commit()
+            db.session.expire(experiment)
+        resp = _generate_csv_or_none(form, experiment)
+        if resp is not None:
+            return resp
+        if _is_autosave():
+            return _autosave_json(form, True)
+        flash("Experiment updated.", "success")
+        return redirect(url_for("experiment_detail", project_code=experiment.project_code, code=experiment.code))
+    if request.method == "POST" and _is_autosave():
+        return _autosave_json(form, False)
+    if request.method == "POST":
+        flash("Could not save — please check the fields below.", "error")
+    return render_template("experiment/form.html", form=form, experiment=experiment)
 
 
 @app.route("/projects/<project_code>/experiments/<code>/delete", methods=["POST"])
 def experiment_delete(project_code, code):
     experiment = db.get_or_404(Experiment, (project_code, code))
-    if any(s.acquired_files for s in experiment.samples):
-        flash("Cannot delete an experiment whose samples have acquired files.", "error")
+    if experiment.acquired_files:
+        flash("Cannot delete an experiment that has acquired files.", "error")
         return redirect(url_for("experiment_detail", project_code=project_code, code=code))
-    for sample in list(experiment.samples):
-        _delete_sample(sample)
     db.session.delete(experiment)
     db.session.commit()
     flash("Experiment deleted.", "success")
     return redirect(url_for("project_detail", code=project_code))
 
 
+def _apply_experiment_conditions(form, experiment, discriminator):
+    """Map the submitted ExperimentForm's condition fields onto the experiment.
+
+    ``discriminator`` is the crosslinking_experiment value to persist (1/0/-1); it
+    is set explicitly because ``populate_obj`` would otherwise clobber the
+    discriminator column with the form's boolean. The caller decides the value —
+    the edit page passes the toggle's desired type (so type is editable), while
+    creation pins it to the new row's type. SQLAlchemy doesn't re-class the
+    in-session instance, but the changed column value is persisted and the row
+    reloads as the correct subclass on the next request.
+    """
+    form.populate_obj(experiment)
+    experiment.crosslinking_experiment = discriminator
+    experiment.quantitation = 1 if form.quantitation.data else 0
+    # populate_obj set varying_conditions to the raw hidden-field JSON string;
+    # replace it with the parsed list (the actual JSON column value).
+    experiment.varying_conditions = _load_varying_conditions(form.varying_conditions.data)
+    _coerce_select_fields(experiment)
+    _nullify_crosslink_fields(experiment)
+    with db.session.no_autoflush:
+        experiment.species_list = Species.query.filter(
+            Species.id.in_(form.species_ids.data)
+        ).all()
+        experiment.cell_lines = CellLine.query.filter(
+            CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
+        ).all()
+
+
+def _experiment_copy_choices(project_code):
+    """Grouped options for the 'base new experiment on an existing one' dropdown:
+    the current project's experiments, then the shared FAV templates (always
+    included, regardless of the FAV project's active flag).
+    """
+    def _options(experiments):
+        return [
+            (_exp_token(e.project_code, e.code), f"{e.code} — {e.name}")
+            for e in experiments
+        ]
+
+    current = (
+        Experiment.query.filter_by(project_code=project_code)
+        .order_by(Experiment.code).all()
+    )
+    groups = [("Current project", _options(current))]
+
+    # FAV templates: always available. Skip if the current project IS FAV (its
+    # experiments are already listed above).
+    if project_code != FAV_PROJECT_CODE:
+        fav = (
+            Experiment.query.filter(Experiment.project_code == FAV_PROJECT_CODE)
+            .order_by(Experiment.code).all()
+        )
+        if fav:
+            groups.append(("FAV templates", _options(fav)))
+    return groups
+
+
+def _clone_experiment(source, project_code, new_code):
+    """Build a new experiment that copies everything from ``source`` except its
+    identity. Type is preserved; ``name`` is left blank (it must be re-entered).
+    Runs server-side (not via a rendered form) so the copy survives the minimal
+    create page, which doesn't render the condition fields.
+    """
+    experiment = (
+        CrosslinkingExperiment() if source.crosslinking_experiment == 1
+        else IdentificationExperiment()
+    )
+    skip = {"project_code", "code", "name", "crosslinking_experiment"}
+    for attr in sa_inspect(Experiment).mapper.column_attrs:
+        if attr.key in skip:
+            continue
+        setattr(experiment, attr.key, getattr(source, attr.key))
+    experiment.project_code = project_code
+    experiment.code = new_code
+    experiment.name = ""
+    experiment.varying_conditions = list(source.varying_conditions or [])
+    # Add to the session before assigning M2M relationships so the association
+    # rows are recorded (assigning them on a transient object is a no-op).
+    db.session.add(experiment)
+    experiment.species_list = list(source.species_list)
+    experiment.cell_lines = list(source.cell_lines)
+    return experiment
+
+
 @app.route("/projects/<project_code>/experiments/new", methods=["GET", "POST"])
 def experiment_create(project_code):
     # The parent project is fixed by the URL (you reach this page from a project),
-    # so there's no project selector — it's shown read-only on the form.
+    # so there's no project selector — it's shown read-only on the form. The create
+    # page asks only for a code; everything else is filled in on the autosaving edit
+    # page afterwards. Optionally the new row is cloned from an existing experiment
+    # (the "base on existing" <select name="copy_from">), applied server-side.
     project = db.get_or_404(Project, project_code)
-    form = ExperimentForm()
-    del form.project_code
-    form.user_initials.choices = _user_initials_choices()
+    form = ExperimentCreateForm()
+
     if request.method == "GET":
-        if project.user_initials:
-            form.user_initials.data = project.user_initials
         form.code.data = _next_experiment_code(project_code)
+
     if form.validate_on_submit():
-        experiment = Experiment()
-        form.populate_obj(experiment)
-        experiment.project_code = project_code
+        copy_source = None
+        copy_from = request.form.get("copy_from")
+        if copy_from:
+            parts = _split_token(copy_from)
+            if len(parts) == 2:
+                copy_source = db.session.get(Experiment, tuple(parts))
+
+        if copy_source:
+            experiment = _clone_experiment(copy_source, project_code, form.code.data)
+        else:
+            # A bare new experiment: only the code is entered here; the rest is
+            # filled in on the edit page. name/description/user_initials are
+            # NOT NULL, so default them to blank (shown as the code until named).
+            experiment = IdentificationExperiment()
+            experiment.project_code = project_code
+            experiment.code = form.code.data
+            experiment.name = ""
+            experiment.description = ""
+            experiment.user_initials = ""
         db.session.add(experiment)
         if _commit_unique(form, "code", "An experiment with code"):
             flash("Experiment created.", "success")
             return redirect(url_for("experiment_detail", project_code=experiment.project_code, code=experiment.code))
+
     cancel_url = url_for("project_detail", code=project_code)
     return render_template(
-        "experiment/form.html", form=form, experiment=None, samples=[],
-        project=project, cancel_url=cancel_url,
+        "experiment/create.html", form=form, project=project, cancel_url=cancel_url,
+        copy_experiments=_experiment_copy_choices(project_code),
     )
 
 
-@app.route("/projects/<project_code>/experiments/<code>/edit", methods=["GET", "POST"])
+@app.route("/projects/<project_code>/experiments/<code>/edit")
 def experiment_edit(project_code, code):
-    experiment = db.get_or_404(Experiment, (project_code, code))
-    samples = (
-        MassSpecSample.query
-        .filter_by(project_code=project_code, experiment_code=code)
-        .order_by(MassSpecSample.name).all()
-    )
-    form = ExperimentForm(obj=experiment)
-    del form.code
-    # project_code is part of the primary key — re-parenting is not supported.
-    del form.project_code
-    form.user_initials.choices = _user_initials_choices()
-    if form.validate_on_submit():
-        form.populate_obj(experiment)
-        db.session.commit()
-        flash("Experiment updated.", "success")
-        return redirect(url_for("experiment_detail", project_code=experiment.project_code, code=experiment.code))
-    if request.method == "POST":
-        flash("Could not save — please check the fields below.", "error")
-    return render_template("experiment/form.html", form=form, experiment=experiment, samples=samples)
+    # The edit form was merged into experiment_detail (the canonical page). Keep
+    # this route as a redirect so old /edit bookmarks still resolve.
+    return redirect(url_for("experiment_detail", project_code=project_code, code=code))
 
 
 # ---------------------------------------------------------------------------
@@ -511,8 +826,12 @@ def species_edit(id):
     if form.validate_on_submit():
         form.populate_obj(species)
         db.session.commit()
+        if _is_autosave():
+            return _autosave_json(form, True)
         flash("Species updated.", "success")
         return redirect(url_for("species_detail", id=species.id))
+    if request.method == "POST" and _is_autosave():
+        return _autosave_json(form, False)
     return render_template("species/form.html", form=form, species=species)
 
 
@@ -572,8 +891,12 @@ def cell_line_edit(cellosaurus_id):
         form.populate_obj(cl)
         cl.viruses = Virus.query.filter(Virus.id.in_(form.virus_ids.data)).all()
         db.session.commit()
+        if _is_autosave():
+            return _autosave_json(form, True)
         flash("Cell line updated.", "success")
         return redirect(url_for("cell_line_detail", cellosaurus_id=cl.cellosaurus_id))
+    if request.method == "POST" and _is_autosave():
+        return _autosave_json(form, False)
     return render_template("cell_line/form.html", form=form, cell_line=cl)
 
 
@@ -620,8 +943,12 @@ def virus_edit(id):
         if virus.species_id == 0:
             virus.species_id = None
         db.session.commit()
+        if _is_autosave():
+            return _autosave_json(form, True)
         flash("Virus updated.", "success")
         return redirect(url_for("virus_detail", id=virus.id))
+    if request.method == "POST" and _is_autosave():
+        return _autosave_json(form, False)
     return render_template("virus/form.html", form=form, virus=virus)
 
 
@@ -661,54 +988,63 @@ def user_edit(initials):
     if form.validate_on_submit():
         form.populate_obj(user)
         db.session.commit()
+        if _is_autosave():
+            return _autosave_json(form, True)
         flash("User updated.", "success")
         return redirect(url_for("user_detail", initials=user.initials))
+    if request.method == "POST" and _is_autosave():
+        return _autosave_json(form, False)
     return render_template("user/form.html", form=form, user=user)
 
 
 # ---------------------------------------------------------------------------
-# Samples
+# Instruments
 # ---------------------------------------------------------------------------
-def _sample_copy_choices(project_code):
-    """Grouped options for the 'copy from existing sample' dropdown.
-
-    Returns a list of (group_label, [(token, label), ...]) tuples: the current
-    project's active samples, followed by the shared FAV templates (always
-    included, regardless of the FAV project's active flag).
-    """
-    def _options(samples):
-        return [
-            (
-                _sample_token(s.project_code, s.experiment_code, s.code),
-                f"{s.experiment_code} / {s.code} — {s.name}",
-            )
-            for s in samples
-        ]
-
-    current = (
-        MassSpecSample.query.join(Experiment).join(Project)
-        .filter(Project.active == True)  # noqa: E712
-        .filter(MassSpecSample.project_code == project_code)
-        .order_by(Experiment.code, MassSpecSample.code)
-        .all()
-    )
-    groups = [("Current project", _options(current))]
-
-    # FAV templates: always available, even if the FAV project is archived.
-    # Skip if the current project IS FAV (its samples are already listed above).
-    if project_code != FAV_PROJECT_CODE:
-        fav = (
-            MassSpecSample.query
-            .filter(MassSpecSample.project_code == FAV_PROJECT_CODE)
-            .order_by(MassSpecSample.experiment_code, MassSpecSample.code)
-            .all()
-        )
-        if fav:
-            groups.append(("FAV templates", _options(fav)))
-
-    return groups
+@app.route("/instruments")
+def instrument_list():
+    instruments = Instrument.query.order_by(Instrument.name).all()
+    return render_template("instrument/list.html", instruments=instruments)
 
 
+@app.route("/instruments/new", methods=["GET", "POST"])
+def instrument_create():
+    form = InstrumentForm()
+    if form.validate_on_submit():
+        instrument = Instrument()
+        form.populate_obj(instrument)
+        db.session.add(instrument)
+        if _commit_unique(form, "initial", "An instrument with initial"):
+            flash("Instrument created.", "success")
+            return redirect(url_for("instrument_detail", initial=instrument.initial))
+    return render_template("instrument/form.html", form=form, instrument=None)
+
+
+@app.route("/instruments/<initial>")
+def instrument_detail(initial):
+    instrument = db.get_or_404(Instrument, initial)
+    return render_template("instrument/detail.html", instrument=instrument)
+
+
+@app.route("/instruments/<initial>/edit", methods=["GET", "POST"])
+def instrument_edit(initial):
+    instrument = db.get_or_404(Instrument, initial)
+    form = InstrumentForm(obj=instrument)
+    del form.initial  # primary key — not editable after creation
+    if form.validate_on_submit():
+        form.populate_obj(instrument)
+        db.session.commit()
+        if _is_autosave():
+            return _autosave_json(form, True)
+        flash("Instrument updated.", "success")
+        return redirect(url_for("instrument_detail", initial=instrument.initial))
+    if request.method == "POST" and _is_autosave():
+        return _autosave_json(form, False)
+    return render_template("instrument/form.html", form=form, instrument=instrument)
+
+
+# ---------------------------------------------------------------------------
+# Experiment condition helpers (shared by experiment create/edit)
+# ---------------------------------------------------------------------------
 def _species_multi_choices():
     return [(s.id, s.species_name) for s in Species.query.order_by(Species.species_name).all()]
 
@@ -720,16 +1056,16 @@ def _cell_line_multi_choices():
     ]
 
 
-def _coerce_select_fields(sample):
+def _coerce_select_fields(experiment):
     """Convert empty-string values from optional SelectFields to None so they
     satisfy the DB CHECK constraints (which allow NULL but not empty string)."""
     for field in ("synthetic_peptide", "quantitation_method", "crosslinking_type"):
-        if getattr(sample, field) == "":
-            setattr(sample, field, None)
+        if getattr(experiment, field) == "":
+            setattr(experiment, field, None)
 
 
-def _nullify_crosslink_fields(sample):
-    """Clear crosslink fields when sample is identification type, and vice versa."""
+def _nullify_crosslink_fields(experiment):
+    """Clear crosslink fields for an identification experiment, and vice versa."""
     crosslink_fields = [
         "crosslinker", "crosslinking_type",
         "protein_or_cell_concentration", "protein_or_cell_concentration_unit",
@@ -741,447 +1077,259 @@ def _nullify_crosslink_fields(sample):
     ]
     identification_fields = ["peptide_level_fraction"]
 
-    if sample.crosslinked_sample:
+    if experiment.crosslinking_experiment == 1:
         for f in identification_fields:
-            setattr(sample, f, None)
+            setattr(experiment, f, None)
     else:
         for f in crosslink_fields:
-            setattr(sample, f, None)
-
-
-@app.route("/samples")
-def sample_list():
-    samples = (
-        MassSpecSample.query.join(Experiment)
-        .join(Project)
-        .options(joinedload(MassSpecSample.experiment).joinedload(Experiment.project))
-        .filter(Project.active == True)  # noqa: E712
-        .order_by(MassSpecSample.name)
-        .all()
-    )
-    users = {u.initials: u.name for u in User.query.all()}
-    return render_template("sample/list.html", samples=samples, users=users)
-
-
-@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/new", methods=["GET", "POST"])
-def sample_create(project_code, experiment_code):
-    # The parent experiment is fixed by the URL (you reach this page from an
-    # experiment), so there's no experiment selector — it's shown read-only.
-    experiment = db.get_or_404(Experiment, (project_code, experiment_code))
-
-    # Optionally pre-fill the form from an existing sample (everything except the
-    # identity fields code/name and the parent experiment). Only relevant on GET —
-    # on POST the values come from the submitted form.
-    copy_source = None
-    copy_from = request.values.get("copy_from")
-    if copy_from:
-        parts = _split_token(copy_from)
-        if len(parts) == 3:
-            copy_source = db.session.get(MassSpecSample, tuple(parts))
-
-    if request.method == "GET" and copy_source:
-        form = MassSpecSampleForm(obj=copy_source)
-        # Identity fields must stay unique — don't copy them.
-        form.code.data = ""
-        form.name.data = ""
-        form.crosslinked_sample.data = bool(copy_source.crosslinked_sample)
-        form.quantitation.data = bool(copy_source.quantitation)
-        form.species_ids.data = [s.id for s in copy_source.species_list]
-        form.cellosaurus_ids.data = [cl.cellosaurus_id for cl in copy_source.cell_lines]
-    else:
-        form = MassSpecSampleForm()
-
-    del form.experiment_code
-    form.user_initials.choices = _user_initials_choices()
-    form.species_ids.choices = _species_multi_choices()
-    form.cellosaurus_ids.choices = _cell_line_multi_choices()
-    if request.method == "GET":
-        if not copy_source and experiment.user_initials:
-            form.user_initials.data = experiment.user_initials
-        form.code.data = _next_sample_code(project_code, experiment_code)
-    if form.validate_on_submit():
-        is_crosslinked = form.crosslinked_sample.data
-        if is_crosslinked:
-            sample = CrosslinkSample()
-        else:
-            sample = IdentificationSample()
-        form.populate_obj(sample)
-        sample.project_code = project_code
-        sample.experiment_code = experiment_code
-        sample.crosslinked_sample = 1 if is_crosslinked else 0
-        sample.quantitation = 1 if form.quantitation.data else 0
-        _coerce_select_fields(sample)
-        _nullify_crosslink_fields(sample)
-        db.session.add(sample)
-        # Resolve the many-to-many selections with autoflush suppressed: the
-        # sample is already pending, so an autoflush here would try to INSERT it
-        # mid-query and a duplicate code would raise IntegrityError from the
-        # query (not the commit), escaping _commit_unique below. Deferring the
-        # flush to commit keeps duplicate handling in one place.
-        with db.session.no_autoflush:
-            sample.species_list = Species.query.filter(
-                Species.id.in_(form.species_ids.data)
-            ).all()
-            sample.cell_lines = CellLine.query.filter(
-                CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
-            ).all()
-        if _commit_unique(form, "code", "A sample with code"):
-            flash("Sample created.", "success")
-            return redirect(url_for("sample_detail", project_code=sample.project_code, experiment_code=sample.experiment_code, code=sample.code))
-    cancel_url = url_for("experiment_detail", project_code=project_code, code=experiment_code)
-    return render_template(
-        "sample/form.html", form=form, sample=None, experiment=experiment,
-        copy_samples=_sample_copy_choices(project_code), copy_from=copy_from, cancel_url=cancel_url,
-    )
-
-
-@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>")
-def sample_detail(project_code, experiment_code, code):
-    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
-    total_size_gb = sum(f.size_bytes or 0 for f in sample.acquired_files) / 1e9
-    users = {u.initials: u.name for u in User.query.all()}
-    active_users = User.query.filter_by(active=True).order_by(User.name).all()
-    return render_template(
-        "sample/detail.html", sample=sample,
-        file_count=len(sample.acquired_files), total_size_gb=total_size_gb, users=users,
-        active_users=active_users,
-    )
-
-
-def _delete_sample(sample):
-    """Delete a sample plus its queued runs. Caller guarantees no acquired files.
-    Many-to-many species/cell-line rows are removed automatically by SQLAlchemy."""
-    for qf in list(sample.queued_files):
-        db.session.delete(qf)
-    db.session.delete(sample)
-
-
-@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/delete", methods=["POST"])
-def sample_delete(project_code, experiment_code, code):
-    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
-    if sample.acquired_files:
-        flash("Cannot delete a sample that has acquired files.", "error")
-        return redirect(url_for("sample_detail", project_code=project_code,
-                                experiment_code=experiment_code, code=code))
-    _delete_sample(sample)
-    db.session.commit()
-    flash("Sample deleted.", "success")
-    return redirect(url_for("experiment_detail", project_code=project_code, code=experiment_code))
+            setattr(experiment, f, None)
 
 
 # ---------------------------------------------------------------------------
-# Queue (queued_file)
+# Variable conditions → combinatorial queue generation
+#
+# Each variable-condition row is {description, prefix, values, postfix}. The
+# generated filename for a combination is
+#   {inst}_{YYYYMMDD}-{NNN}_{proj}_{user}_{exp}_{seg1}_{seg2}_...
+# where seg = prefix + value + postfix, over the Cartesian product of every
+# row's parsed value list. The JS twin of _parse_condition_values lives in
+# static/js/variable-conditions.js and must stay in lockstep so the live
+# preview matches the CSV this produces.
 # ---------------------------------------------------------------------------
-def queued_filename(qf):
-    """Build the run filename for a QueuedFile row.
+_RANGE_RE = re.compile(
+    r"^\s*(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*(?:@\s*(\d+(?:\.\d+)?)\s*)?$"
+)
+_MAX_RUNS = 10000
+# Xcalibur/Windows choke on very long run filenames, so refuse to generate a
+# queue containing any. The JS twin (MAX_FILENAME_LEN in variable-conditions.js)
+# flags the same limit in the live preview.
+_MAX_FILENAME_LEN = 180
 
-    Sample run: {inst}_{YYYYMMDD}-{NNN}_{proj}_{user}_{exp}_{samp}_{postfix}
-    Blank run:  {inst}_{YYYYMMDD}_BLANK-AND-CLEANING
-    NNN = run_number (sample runs only, blanks excluded) padded to 3 digits;
-    blanks carry no NNN at all.
 
-    file_name_root is the DB-generated part up to and including the '_' before the
-    postfix, so the full filename is just root + postfix.
+def _fmt_num(x):
+    """Format a range value: integers without a decimal point, decimals with
+    trailing zeros trimmed (so 4.0 -> '4', 0.50 -> '0.5')."""
+    if x == int(x):
+        return str(int(x))
+    return f"{x:g}"
+
+
+def _parse_condition_values(s):
+    """Parse a Values cell into a list of strings.
+
+    A range "x - y @ z" (step optional, default 1) expands to individual items;
+    anything else is a comma-separated list. Mirrors parseValues() in the JS.
     """
-    root = qf.file_name_root  # ends with the '_' separator before the postfix
-    if qf.sample_code:
-        return f"{root}{qf.postfix}" if qf.postfix else root[:-1]
-    # Blank / cleaning run — postfix carries the label.
-    return f"{root}{qf.postfix or 'BLANK-AND-CLEANING'}"
+    if not s:
+        return []
+    m = _RANGE_RE.match(s)
+    if m:
+        start, end = float(m.group(1)), float(m.group(2))
+        step = float(m.group(3)) if m.group(3) else 1.0
+        if step <= 0:
+            return [s.strip()]
+        out = []
+        v = start
+        # guard against runaway ranges
+        while v <= end + 1e-9 and len(out) <= _MAX_RUNS:
+            out.append(_fmt_num(round(v, 10)))
+            v += step
+        return out
+    return [part.strip() for part in s.split(",") if part.strip()]
 
 
-def _parse_queue_date(date_str):
-    try:
-        return datetime.strptime(date_str, "%Y%m%d").date()
-    except (ValueError, TypeError):
-        abort(400, "date must be YYYYMMDD")
+def _instrument_choices():
+    instruments = Instrument.query.order_by(Instrument.name).all()
+    return [("", "— none —")] + [(i.initial, f"{i.initial} — {i.name}") for i in instruments]
 
 
-def _next_daily_counter(instrument, day):
-    """Next run-order slot for an instrument on a day (append to the end).
+# 96-well plate assignment (ported from the sequencer.py prototype). The JS twins
+# in variable-conditions.js mirror these so the preview matches the CSV.
+_WELL_ROWS = list("ABCDEFGH")
+_WELL_COLS = list(range(1, 13))
 
-    Counts *all* rows for the day, including exported ones, on purpose: clearing
-    the queue marks rows exported instead of deleting them, so the counter keeps
-    climbing and never re-uses a run number already burned into an exported CSV.
+
+def _make_well_order(mode):
+    """rowwise: A1..A12,B1..H12  ·  columnwise: A1,B1..H1,A2..H12."""
+    wells = []
+    if mode == "columnwise":
+        for col in _WELL_COLS:
+            for row in _WELL_ROWS:
+                wells.append(f"{row}{col}")
+    else:  # rowwise (default)
+        for row in _WELL_ROWS:
+            for col in _WELL_COLS:
+                wells.append(f"{row}{col}")
+    return wells
+
+
+def _validate_well(well):
+    """Normalise a well like 'a1'/'H12' to 'A1'/'H12', or None if invalid."""
+    well = (well or "").strip().upper()
+    if len(well) < 2:
+        return None
+    row, col_text = well[0], well[1:]
+    if row not in _WELL_ROWS or not col_text.isdigit():
+        return None
+    if int(col_text) not in _WELL_COLS:
+        return None
+    return f"{row}{int(col_text)}"
+
+
+def _generate_runs(conditions, inst, ymd, proj, user, exp, run_start, well=None):
+    """Build the combinatorial run list.
+
+    Returns (rows, error). rows is a list of {run_number, filename, values,
+    position}; the Cartesian product is taken in row order (last row varies
+    fastest, matching sequencer.py). ``well`` is the optional plate config
+    {enable, order, start, in_filename, in_position}: runs are placed into
+    96-well positions from ``start`` in ``order``, wrapping onto a new plate every
+    96; the plate number is only added when the run set spans more than one plate.
+    error is a message string if generation can't proceed.
     """
-    current_max = (
-        db.session.query(func.max(QueuedFile.daily_counter))
-        .filter_by(instrument_initial=instrument, date_queued=day)
-        .scalar()
-    )
-    return (current_max or 0) + 1
+    value_lists = [_parse_condition_values(c.get("values", "")) for c in conditions]
+    value_lists = [vl for vl in value_lists if vl]
+    # Keep the prefixes/postfixes aligned with the non-empty value lists. With no
+    # variable conditions at all, itertools.product() yields a single empty
+    # combination, so the queue gets one entry whose filename is just the base
+    # (ending in the experiment code).
+    active = [c for c in conditions if _parse_condition_values(c.get("values", ""))]
+    total = 1
+    for vl in value_lists:
+        total *= len(vl)
+    if total > _MAX_RUNS:
+        return [], f"That would generate {total} runs (limit {_MAX_RUNS}). Narrow the conditions."
 
+    wells = start_index = None
+    include_plate = False
+    if well and well.get("enable"):
+        wells = _make_well_order(well.get("order"))
+        start_well = _validate_well(well.get("start"))
+        if start_well is None:
+            return [], "Invalid well start position — use e.g. A1, B3, H12."
+        start_index = wells.index(start_well)
+        include_plate = ((start_index + total - 1) // 96 + 1) > 1
 
-def _next_run_number(instrument, day):
-    """Next sample run number for an instrument on a day.
-
-    Counts only sample runs (``run_number`` is NULL on BLANK-AND-CLEANING rows),
-    so blanks never consume a run number and the per-day sample numbering stays
-    contiguous regardless of how many blanks are interleaved.
-    """
-    current_max = (
-        db.session.query(func.max(QueuedFile.run_number))
-        .filter_by(instrument_initial=instrument, date_queued=day)
-        .scalar()
-    )
-    return (current_max or 0) + 1
-
-
-def _append_to_queue(instrument, day, build_rows, attempts=5):
-    """Append rows to an instrument's day queue, race-safe.
-
-    ``build_rows(counter_start, run_start)`` returns the ``QueuedFile`` rows to
-    insert, numbered from the first free ``daily_counter`` (the PK ordering slot)
-    and ``run_number`` (the sample run number). Two concurrent requests can read
-    the same maxima and pick the same slot; the loser's commit then violates the
-    composite PK. We catch that, roll back, recompute both, and retry the whole
-    (re-numbered) batch — each attempt commits atomically, so there are never
-    partial inserts. Recomputing run_start in lockstep with the PK slot keeps
-    sample run numbers unique even though they aren't themselves part of the PK.
-    """
-    for _ in range(attempts):
-        rows = build_rows(
-            _next_daily_counter(instrument, day), _next_run_number(instrument, day)
-        )
-        db.session.add_all(rows)
-        try:
-            db.session.commit()
-            return rows
-        except IntegrityError:
-            db.session.rollback()
-    abort(409, "Could not assign a queue slot — please retry.")
-
-
-def _day_queue_json(day):
-    """Snapshot of the queue for one day: tab list + rows grouped by instrument."""
-    instruments = [
-        r[0] for r in db.session.query(QueuedFile.instrument_initial)
-        .filter(QueuedFile.exported.is_(False))
-        .distinct().order_by(QueuedFile.instrument_initial).all()
-    ]
-    rows = (
-        QueuedFile.query.options(joinedload(QueuedFile.sample))
-        .filter_by(date_queued=day, exported=False)
-        .order_by(QueuedFile.instrument_initial, QueuedFile.daily_counter)
-        .all()
-    )
-    queues = defaultdict(list)
-    for qf in rows:
-        queues[qf.instrument_initial].append({
-            "daily_counter": qf.daily_counter,
-            "run_number": qf.run_number,
-            "filename": queued_filename(qf),
-            "postfix": qf.postfix,
-            "user_initials": qf.user_initials,
-            "project_code": qf.project_code,
-            "experiment_code": qf.experiment_code,
-            "sample_code": qf.sample_code,
-            "sample_url": (
-                url_for("sample_detail", project_code=qf.project_code,
-                        experiment_code=qf.experiment_code, code=qf.sample_code)
-                if qf.sample_code else None
-            ),
-            "is_blank": not qf.sample_code,
+    rows = []
+    for i, combo in enumerate(itertools.product(*value_lists)):
+        nnn = run_start + i
+        base = f"{inst}_{ymd}-{nnn:03d}_{proj}_{user}_{exp}"
+        segments = [
+            f"{active[j].get('prefix', '')}{val}{active[j].get('postfix', '')}"
+            for j, val in enumerate(combo)
+        ]
+        position = ""
+        if wells is not None:
+            abs_index = start_index + i
+            plate = abs_index // 96 + 1
+            wname = wells[abs_index % 96]
+            if well.get("in_filename"):
+                if include_plate:
+                    segments.append(f"Plate{plate}")
+                segments.append(wname)
+            if well.get("in_position"):
+                position = f"{plate}:{wname}" if include_plate else wname
+        rows.append({
+            "run_number": nnn,
+            "filename": "_".join([base] + segments),
+            "values": list(combo),
+            "position": position,
         })
-    return {"date": day.isoformat(), "instruments": instruments, "queues": dict(queues)}
+    too_long = [r for r in rows if len(r["filename"]) > _MAX_FILENAME_LEN]
+    if too_long:
+        longest = max(too_long, key=lambda r: len(r["filename"]))
+        return [], (
+            f"{len(too_long)} generated filename(s) exceed {_MAX_FILENAME_LEN} "
+            f"characters (longest is {len(longest['filename'])}: "
+            f"\"{longest['filename']}\"). Shorten the codes, prefixes, or "
+            "postfixes and try again."
+        )
+    return rows, None
 
 
-def build_day_csv(rows, day):
-    """Build a Thermo Xcalibur sequence CSV for one instrument's ordered day queue.
+def _build_queue_csv(rows, ymd):
+    """Thermo Xcalibur sequence CSV for the generated run list.
 
-    Xcalibur sequence files are plain Windows-ANSI (cp1252) text, not UTF-7 — so
-    codes, the data path, etc. are written literally. One row per queued run, in
-    daily_counter order; blanks get a BLANK-AND-CLEANING comment. cp1252 keeps all
-    ASCII as-is and still handles the occasional µ/°/etc. in a sample name;
-    anything it can't represent is replaced rather than crashing the export.
+    Layout is the Xcalibur sequence format: a leading ``Bracket Type=4`` line,
+    the column header row, then one row per run. Path is the instrument's data
+    folder for the day; the Comment column is left empty.
+
+    Encoded UTF-8 with a BOM (``utf-8-sig``) so spreadsheet apps (Excel /
+    LibreOffice) reliably detect the encoding instead of guessing a double-byte
+    codepage and mangling the text. If the Xcalibur importer rejects the BOM,
+    switch this back to ``.encode("cp1252", errors="replace")``.
     """
-    path = f"D:\\Data\\{day:%Y}\\{day:%y}{day:%m}\\{day:%y%m%d}"
+    path = f"D:\\Data\\{ymd[0:4]}\\{ymd[2:4]}{ymd[4:6]}\\{ymd[2:8]}"
     buf = io.StringIO()
     writer = csv.writer(buf, lineterminator="\n")
     writer.writerow(["Bracket Type=4", "", "", "", "", ""])
     writer.writerow(["File Name", "Path", "Instrument Method", "Position", "Inj Vol", "Comment"])
-    for qf in rows:
-        if qf.sample_code:
-            sample_name = qf.sample.name if qf.sample else ""
-            comment = f"{qf.project_code}_{qf.experiment_code}_{qf.sample_code} - {sample_name}"
-        else:
-            comment = "BLANK-AND-CLEANING"
-        writer.writerow([queued_filename(qf), path, "", "", "", comment])
-    return buf.getvalue().encode("cp1252", errors="replace")
+    for row in rows:
+        writer.writerow([row["filename"], path, "", row.get("position", ""), "", ""])
+    return buf.getvalue().encode("utf-8-sig")
 
 
-@app.route(
-    "/projects/<project_code>/experiments/<experiment_code>/samples/<code>/queue",
-    methods=["POST"],
-)
-def sample_queue(project_code, experiment_code, code):
-    """Append a batch of runs for one sample to an instrument's day queue."""
-    db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
-    data = request.get_json(silent=True) or {}
-    inst = (data.get("instrument_initial") or "").strip()
-    user = (data.get("user_initials") or "").strip()
-    day = _parse_queue_date((data.get("date") or "").strip())
+def _load_varying_conditions(raw):
+    """Parse the hidden field JSON into a clean list of condition dicts."""
     try:
-        count = int(data.get("count"))
-    except (TypeError, ValueError):
-        abort(400, "count must be an integer")
-    if not inst or not user:
-        abort(400, "instrument_initial and user_initials are required")
-    if count < 1:
-        abort(400, "count must be >= 1")
-
-    _append_to_queue(inst, day, lambda counter_start, run_start: [
-        QueuedFile(
-            instrument_initial=inst,
-            date_queued=day,
-            daily_counter=counter_start + i,
-            run_number=run_start + i,
-            project_code=project_code,
-            experiment_code=experiment_code,
-            sample_code=code,
-            user_initials=user,
-            postfix=f"f{i + 1:02d}",
-        )
-        for i in range(count)
-    ])
-    return jsonify(_day_queue_json(day))
+        data = json.loads(raw or "[]")
+    except (ValueError, TypeError):
+        return []
+    if not isinstance(data, list):
+        return []
+    cleaned = []
+    for item in data:
+        if not isinstance(item, dict):
+            continue
+        cleaned.append({
+            "description": str(item.get("description", "")),
+            "prefix": str(item.get("prefix", "")),
+            "values": str(item.get("values", "")),
+            "postfix": str(item.get("postfix", "")),
+        })
+    return cleaned
 
 
-@app.route("/api/queue")
-def api_queue():
-    date_str = (request.args.get("date") or "").strip()
-    day = _parse_queue_date(date_str) if date_str else date.today()
-    return jsonify(_day_queue_json(day))
-
-
-@app.route("/api/queue/blank", methods=["POST"])
-def api_queue_blank():
-    data = request.get_json(silent=True) or {}
-    inst = (data.get("instrument_initial") or "").strip()
-    user = (data.get("user_initials") or "").strip() or None
-    day = _parse_queue_date((data.get("date") or "").strip())
-    if not inst:
-        abort(400, "instrument_initial is required")
-    # run_number is left NULL so the blank doesn't consume a sample run number
-    # and its filename carries no -NN (see file_name_root).
-    _append_to_queue(inst, day, lambda counter_start, run_start: [QueuedFile(
-        instrument_initial=inst,
-        date_queued=day,
-        daily_counter=counter_start,
-        user_initials=user,
-        postfix="BLANK-AND-CLEANING",
-    )])
-    return jsonify(_day_queue_json(day))
-
-
-def _queue_row_or_404(data):
-    inst = (data.get("instrument_initial") or "").strip()
-    day = _parse_queue_date((data.get("date") or "").strip())
+def _generate_csv_or_none(form, experiment):
+    """If this submit was 'Save and Generate Queue', return the run-list CSV as a
+    download Response; otherwise None. Assumes the experiment (including its
+    varying_conditions) has already been saved. On a generation error the message
+    is flashed and None is returned, so the caller falls back to its normal
+    save-and-redirect path.
+    """
+    if request.form.get("action") != "generate":
+        return None
+    inst = (form.gen_instrument.data or "").strip()
+    user = (form.gen_user.data or "").strip()
+    ymd = (form.gen_date.data or "").strip().replace("-", "")
     try:
-        counter = int(data.get("daily_counter"))
+        run_start = int(form.gen_run_start.data)
     except (TypeError, ValueError):
-        abort(400, "daily_counter must be an integer")
-    qf = db.session.get(QueuedFile, (inst, day, counter))
-    if qf is None:
-        abort(404)
-    return qf, day
-
-
-@app.route("/api/queue/update", methods=["POST"])
-def api_queue_update():
-    data = request.get_json(silent=True) or {}
-    qf, day = _queue_row_or_404(data)
-    qf.postfix = (data.get("postfix") or "").strip() or None
-    db.session.commit()
-    return jsonify(_day_queue_json(day))
-
-
-@app.route("/api/queue/delete", methods=["POST"])
-def api_queue_delete():
-    data = request.get_json(silent=True) or {}
-    qf, day = _queue_row_or_404(data)
-    db.session.delete(qf)
-    db.session.commit()
-    return jsonify(_day_queue_json(day))
-
-
-@app.route("/api/queue/clear", methods=["POST"])
-def api_queue_clear():
-    """Hide an instrument's day queue by marking its runs exported (not deleted),
-    so the daily_counter keeps climbing for any runs re-queued the same day."""
-    data = request.get_json(silent=True) or {}
-    inst = (data.get("instrument_initial") or "").strip()
-    day = _parse_queue_date((data.get("date") or "").strip())
-    if not inst:
-        abort(400, "instrument_initial is required")
-    QueuedFile.query.filter_by(
-        instrument_initial=inst, date_queued=day, exported=False
-    ).update({"exported": True})
-    db.session.commit()
-    return jsonify(_day_queue_json(day))
-
-
-@app.route("/api/queue/csv")
-def api_queue_csv():
-    inst = (request.args.get("instrument") or "").strip()
-    day = _parse_queue_date((request.args.get("date") or "").strip())
-    if not inst:
-        abort(400, "instrument is required")
-    rows = (
-        QueuedFile.query.options(joinedload(QueuedFile.sample))
-        .filter_by(instrument_initial=inst, date_queued=day)
-        .order_by(QueuedFile.daily_counter)
-        .all()
+        run_start = 1
+    if not (inst and user and len(ymd) == 8 and ymd.isdigit()):
+        flash("Instrument, operator, and a valid date are required to generate the queue.", "error")
+        return None
+    well = {
+        "enable": bool(form.well_enable.data),
+        "order": form.well_order.data,
+        "start": form.well_start.data,
+        "in_filename": bool(form.well_in_filename.data),
+        "in_position": bool(form.well_in_position.data),
+    }
+    conditions = experiment.varying_conditions or []
+    rows, error = _generate_runs(
+        conditions, inst, ymd, experiment.project_code, user, experiment.code,
+        run_start, well=well,
     )
-    csv_bytes = build_day_csv(rows, day)
+    if error:
+        flash(error, "error")
+        return None
+    csv_bytes = _build_queue_csv(rows, ymd)
     resp = Response(csv_bytes, mimetype="text/csv")
     resp.headers["Content-Disposition"] = (
-        f'attachment; filename="{inst}_{day:%Y%m%d}_sequence.csv"'
+        f'attachment; filename="{inst}_{ymd}_{experiment.code}_sequence.csv"'
     )
     return resp
-
-
-@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/edit", methods=["GET", "POST"])
-def sample_edit(project_code, experiment_code, code):
-    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
-    form = MassSpecSampleForm(obj=sample)
-    del form.code
-    # experiment_code/project_code are part of the primary key — re-parenting
-    # is not supported, so the experiment selector is omitted on edit.
-    del form.experiment_code
-    form.user_initials.choices = _user_initials_choices()
-    if sample.user_initials and sample.user_initials not in [c[0] for c in form.user_initials.choices]:
-        form.user_initials.choices.append((sample.user_initials, sample.user_initials))
-    form.species_ids.choices = _species_multi_choices()
-    form.cellosaurus_ids.choices = _cell_line_multi_choices()
-
-    if request.method == "GET":
-        form.crosslinked_sample.data = bool(sample.crosslinked_sample)
-        form.quantitation.data = bool(sample.quantitation)
-        form.species_ids.data = [s.id for s in sample.species_list]
-        form.cellosaurus_ids.data = [cl.cellosaurus_id for cl in sample.cell_lines]
-
-    if form.validate_on_submit():
-        is_crosslinked = form.crosslinked_sample.data
-        form.populate_obj(sample)
-        sample.crosslinked_sample = 1 if is_crosslinked else 0
-        sample.quantitation = 1 if form.quantitation.data else 0
-        _coerce_select_fields(sample)
-        # Many-to-many sync
-        sample.species_list = Species.query.filter(
-            Species.id.in_(form.species_ids.data)
-        ).all()
-        sample.cell_lines = CellLine.query.filter(
-            CellLine.cellosaurus_id.in_(form.cellosaurus_ids.data)
-        ).all()
-        _nullify_crosslink_fields(sample)
-        key = (sample.project_code, sample.experiment_code, sample.code)
-        db.session.commit()
-        flash("Sample updated.", "success")
-        return redirect(url_for("sample_detail", project_code=key[0], experiment_code=key[1], code=key[2]))
-    if request.method == "POST":
-        flash("Could not save — please check the fields below.", "error")
-    return render_template("sample/form.html", form=form, sample=sample)
 
 
 # ---------------------------------------------------------------------------
@@ -1191,7 +1339,7 @@ def sample_edit(project_code, experiment_code, code):
 def file_list():
     files = (
         AcquiredFile.query.options(
-            joinedload(AcquiredFile.sample).joinedload(MassSpecSample.experiment).joinedload(Experiment.project)
+            joinedload(AcquiredFile.experiment).joinedload(Experiment.project)
         )
         .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename)
         .all()
@@ -1200,14 +1348,12 @@ def file_list():
     return render_template("file/list.html", files=files, users=users)
 
 
-@app.route("/projects/<project_code>/experiments/<experiment_code>/samples/<code>/db-files/new", methods=["GET", "POST"])
-def file_create(project_code, experiment_code, code):
-    sample = db.get_or_404(MassSpecSample, (project_code, experiment_code, code))
+@app.route("/projects/<project_code>/experiments/<code>/db-files/new", methods=["GET", "POST"])
+def file_create(project_code, code):
+    experiment = db.get_or_404(Experiment, (project_code, code))
     form = AcquiredFileForm()
     if form.validate_on_submit():
-        f = AcquiredFile(
-            project_code=project_code, experiment_code=experiment_code, sample_code=code
-        )
+        f = AcquiredFile(project_code=project_code, experiment_code=code)
         form.populate_obj(f)
         f.meta = form.meta_json.data
         if f.size_bytes is not None:
@@ -1216,7 +1362,7 @@ def file_create(project_code, experiment_code, code):
         db.session.commit()
         flash("File record created.", "success")
         return redirect(url_for("file_detail", id=f.id))
-    return render_template("file/form.html", form=form, file=None, sample=sample)
+    return render_template("file/form.html", form=form, file=None, experiment=experiment)
 
 
 @app.route("/files/<int:id>")
@@ -1227,20 +1373,13 @@ def file_detail(id):
 
 def _file_edit_tree():
     experiments = Experiment.query.order_by(Experiment.name).all()
-    samples = MassSpecSample.query.order_by(MassSpecSample.name).all()
     return {
         # "value" is the encoded token used as the <option> value; "project_code"
-        # / "experiment_value" key the client-side cascade filters.
+        # keys the client-side cascade filter.
         "experiments": [
             {"value": _exp_token(e.project_code, e.code), "project_code": e.project_code,
              "label": f"{e.code} — {e.name}"}
             for e in experiments
-        ],
-        "samples": [
-            {"value": _sample_token(s.project_code, s.experiment_code, s.code),
-             "experiment_value": _exp_token(s.project_code, s.experiment_code),
-             "label": f"{s.code} — {s.name}"}
-            for s in samples
         ],
     }
 
@@ -1253,32 +1392,32 @@ def file_edit(id):
         (p.code, f"{p.code} — {p.name}")
         for p in Project.query.order_by(Project.name).all()
     ]
-    # experiment/sample option lists are populated by JS from the embedded tree;
-    # the server-side choices only need to contain the currently-selected value
-    # so WTForms validates the POST.
+    # experiment option list is populated by JS from the embedded tree; the
+    # server-side choices only need to contain the currently-selected value so
+    # WTForms validates the POST.
     form.experiment_code.choices = [("", "—")]
-    form.sample_code.choices = [("", "—")]
-    if request.method == "GET" and f.sample is not None:
-        e = f.sample.experiment
+    if request.method == "GET" and f.experiment is not None:
+        e = f.experiment
         exp_token = _exp_token(e.project_code, e.code)
-        sample_token = _sample_token(f.sample.project_code, f.sample.experiment_code, f.sample.code)
         form.experiment_code.choices.append((exp_token, f"{e.code} — {e.name}"))
-        form.sample_code.choices.append((sample_token, f"{f.sample.code} — {f.sample.name}"))
         form.project_code.data = e.project_code
         form.experiment_code.data = exp_token
-        form.sample_code.data = sample_token
     if form.validate_on_submit():
-        # The server only needs the sample token; project/experiment selects are
-        # pure UX scaffolding handled client-side. Decode the posted token into
-        # the composite key and let the FK constraint reject anything bogus.
-        parts = _split_token(request.form.get("sample_code") or "")
-        if len(parts) == 3:
-            f.project_code, f.experiment_code, f.sample_code = parts
+        # The server only needs the experiment token; the project select is pure
+        # UX scaffolding handled client-side. Decode the posted token into the
+        # composite key and let the FK constraint reject anything bogus.
+        parts = _split_token(request.form.get("experiment_code") or "")
+        if len(parts) == 2:
+            f.project_code, f.experiment_code = parts
         else:
-            f.project_code = f.experiment_code = f.sample_code = None
+            f.project_code = f.experiment_code = None
         db.session.commit()
+        if _is_autosave():
+            return _autosave_json(form, True)
         flash("File association updated.", "success")
         return redirect(url_for("file_detail", id=f.id))
+    if request.method == "POST" and _is_autosave():
+        return _autosave_json(form, False)
     return render_template("file/edit.html", form=form, file=f, tree=_file_edit_tree())
 
 
@@ -1291,8 +1430,7 @@ def instrument_usage():
             Project.code.label("project_code"),
             func.sum(AcquiredFile.size_bytes).label("total_bytes"),
         )
-        .join(AcquiredFile.sample)
-        .join(MassSpecSample.experiment)
+        .join(AcquiredFile.experiment)
         .join(Experiment.project)
         .filter(AcquiredFile.instrument_initial.isnot(None))
         .filter(AcquiredFile.file_date.isnot(None))
@@ -1317,8 +1455,7 @@ def disk_usage():
             Project.code.label("project_code"),
             func.sum(AcquiredFile.size_bytes).label("total_bytes"),
         )
-        .join(AcquiredFile.sample)
-        .join(MassSpecSample.experiment)
+        .join(AcquiredFile.experiment)
         .join(Experiment.project)
         .group_by(Project.code)
         .order_by(func.sum(AcquiredFile.size_bytes).desc())

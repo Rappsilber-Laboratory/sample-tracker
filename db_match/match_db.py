@@ -14,7 +14,7 @@ from pathlib import Path
 
 
 # Need to be added: move directory and windows new start automataion: 
-#python match_db.py   --db_path samples.db   --input-dir ./   --min-file-size-mb 250   --min-file-age-minutes 20 --log-tsv move_log.tsv --watch --poll-seconds 60
+#python match_db.py   --db_path acquisitions.db   --input-dir ./   --min-file-size-mb 250   --min-file-age-minutes 20 --log-tsv move_log.tsv --watch --poll-seconds 60
 
 @dataclass(slots=True, frozen=True)
 class Config:
@@ -37,7 +37,7 @@ class Config:
             dest="db_path",
             type=Path,
             required=True,
-            help="Path to samples.db SQLite database.",
+            help="Path to the acquisitions.db SQLite database.",
         )
         parser.add_argument(
             "--input-dir",
@@ -100,6 +100,13 @@ class Config:
             poll_seconds=args.poll_seconds,
         )
 
+# A file is claimed by an experiment purely on its filename: it must carry a
+# valid project code and experiment code in the expected positions. Nothing else
+# (instrument, date, run number, user, or the variable-condition segments) affects
+# the decision — they're parsed only for logging.
+ExperimentKey = tuple[str, str]  # (project_code, experiment_code)
+
+
 @dataclass(frozen=True, slots=True)
 class FileNameStruct:
     instrument: str
@@ -108,53 +115,29 @@ class FileNameStruct:
     project: str
     user: str
     experiment: str
-    sample: str
 
-@dataclass(frozen=True, slots=True)
-class QueuedFile:
-    file_name_root: str
-    struct: FileNameStruct
-    
+    @property
+    def experiment_key(self) -> ExperimentKey:
+        return (self.project, self.experiment)
+
+
 class SampleTrackerDB:
     def __init__(self, dp_path: Path) -> None:
         self.db_path = dp_path
-        
-    def get_queued_files(self) -> list[QueuedFile]:
+
+    def get_valid_experiment_keys(self) -> set[ExperimentKey]:
+        """Every (project_code, experiment_code) pair that exists in the DB.
+
+        Since experiment rows are keyed by (project_code, code), the presence of a
+        pair here also confirms the project code is valid. A scanned file is
+        associated with an experiment iff its filename's codes are in this set.
+        """
         with sqlite3.connect(self.db_path) as conn:
             conn.row_factory = sqlite3.Row
-            
             rows = conn.execute(
-                """
-                SELECT
-                    file_name_root,
-                    instrument_initial,
-                    replace(date_queued, '-', '') AS date_yyyymmdd,
-                    printf('%03d', run_number) AS run_number,
-                    project_code,
-                    user_initials,
-                    experiment_code,
-                    sample_code
-                FROM queued_file
-                WHERE exported = 0 AND sample_code IS NOT NULL
-                ORDER BY date_queued, instrument_initial, daily_counter
-                """
+                "SELECT project_code, code AS experiment_code FROM experiment"
             )
-            return [self._row_to_queued_file(row) for row in rows]
-        
-    @staticmethod
-    def _row_to_queued_file(row: sqlite3.Row) -> QueuedFile:
-        return QueuedFile(
-            file_name_root=row["file_name_root"],
-            struct=FileNameStruct(
-                instrument=row["instrument_initial"],
-                date=row["date_yyyymmdd"],
-                run_number=row["run_number"],
-                project=row["project_code"],
-                user=row["user_initials"],
-                experiment=row["experiment_code"],
-                sample=row["sample_code"],
-            ),
-        )
+            return {(row["project_code"], row["experiment_code"]) for row in rows}
 
 @dataclass(frozen=True, slots=True)
 class AcquisitionFile:
@@ -224,19 +207,27 @@ class AcquisitionDirectoryScanner:
 
     @staticmethod
     def _parse_file_name_root(file_name_root: str) -> FileNameStruct | None:
+        # New filename scheme (see app.py _generate_runs):
+        #   INSTRUMENT_YYYYMMDD-NNN_PROJECT_USER_EXPERIMENT[_seg1_seg2...]
+        # The date and run number are fused into one underscore-piece
+        # (YYYYMMDD-NNN); anything after the experiment code is variable-condition
+        # segments and is ignored. We need at least the first five pieces.
         pieces = file_name_root.split("_")
 
-        if len(pieces) < 7:
+        if len(pieces) < 5:
             return None
+
+        date_run = pieces[1].split("-", 1)
+        date = date_run[0]
+        run_number = date_run[1] if len(date_run) == 2 else ""
 
         return FileNameStruct(
             instrument=pieces[0],
-            date=pieces[1],
-            run_number=pieces[2],
-            project=pieces[3],
-            user=pieces[4],
-            experiment=pieces[5],
-            sample=pieces[6],
+            date=date,
+            run_number=run_number,
+            project=pieces[2],
+            user=pieces[3],
+            experiment=pieces[4],
         )
 
 LogStatus = Literal["moved", "kept"]
@@ -267,17 +258,12 @@ class MoveAuditLogger:
     def write(
         self,
         acquisition_files: list[AcquisitionFile],
-        queued_files: list[QueuedFile],
+        valid_experiment_keys: set[ExperimentKey],
     ) -> None:
-        queued_keys = {
-            self._struct_key_without_date(queued_file.struct)
-            for queued_file in queued_files
-        }
-
         rows = [
             self._build_row(
                 acquisition_file=acquisition_file,
-                queued_keys=queued_keys,
+                valid_experiment_keys=valid_experiment_keys,
             )
             for acquisition_file in acquisition_files
         ]
@@ -316,12 +302,13 @@ class MoveAuditLogger:
     def _build_row(
         self,
         acquisition_file: AcquisitionFile,
-        queued_keys: set[tuple[str, str, str, str, str, str]],
+        valid_experiment_keys: set[ExperimentKey],
     ) -> MoveLogRow:
-        acquisition_key = self._struct_key_without_date(acquisition_file.struct)
-
+        # A file is claimed ("moved") iff its filename's (project, experiment) codes
+        # name an experiment that exists. The physical move + AcquiredFile
+        # association are still TODO, so destination_path is left blank for now.
         status: LogStatus
-        if acquisition_key in queued_keys:
+        if acquisition_file.struct.experiment_key in valid_experiment_keys:
             status = "moved"
         else:
             status = "kept"
@@ -336,19 +323,6 @@ class MoveAuditLogger:
             ),
         )
 
-    @staticmethod
-    def _struct_key_without_date(
-        struct: FileNameStruct,
-    ) -> tuple[str, str, str, str, str, str]:
-        return (
-            struct.instrument,
-            struct.run_number,
-            struct.project,
-            struct.user,
-            struct.experiment,
-            struct.sample,
-        )
- 
 class Run:
     def __init__(self, config: Config) -> None:
         self.config = config
@@ -384,10 +358,10 @@ class Run:
             return 1
 
         try:
-            queued_files = self.database.get_queued_files()
+            valid_experiment_keys = self.database.get_valid_experiment_keys()
         except sqlite3.Error as exc:
             print(
-                f"Could not read queued files from {self.config.db_path}: {exc}",
+                f"Could not read experiments from {self.config.db_path}: {exc}",
                 file=sys.stderr,
             )
             return 1
@@ -400,12 +374,12 @@ class Run:
 
         self.logger.write(
             acquisition_files=acquisition_files,
-            queued_files=queued_files,
+            valid_experiment_keys=valid_experiment_keys,
         )
-        print(json.dumps([asdict(file) for file in queued_files], indent=2))
+        print(json.dumps(sorted(valid_experiment_keys), indent=2))
         print(json.dumps([asdict(file) for file in acquisition_files], indent=2, default=str))
         print(f"Wrote move log: {self.config.log_tsv_path}")
-        
+
         return 0
     
     

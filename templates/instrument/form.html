@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}{{ 'Edit' if instrument else 'New' }} Instrument{% endblock %}
+{% block content %}
+<h2>{{ 'Edit' if instrument else 'New' }} Instrument</h2>
+{% if instrument %}
+  <p><a href="{{ url_for('instrument_detail', initial=instrument.initial) }}">Cancel</a></p>
+{% else %}
+  <p><a href="{{ url_for('instrument_list') }}">Cancel</a></p>
+{% endif %}
+<form method="post"{% if instrument %} data-autosave{% endif %}>
+  {{ form.hidden_tag() }}
+  <p>{{ render_field(form.name, class="field-wide") }}</p>
+  {% if instrument %}
+  <p><strong>Initial:</strong> {{ instrument.initial }}</p>
+  {% else %}
+  <p>{{ render_field(form.initial) }}
+    <small class="field-warning">⚠ The initial cannot be changed after creation.</small>
+  </p>
+  {% endif %}
+  <p>{{ render_field(form.model) }}</p>
+  {% if instrument %}
+    <span class="autosave-status"></span>
+    <a href="{{ url_for('instrument_list') }}">Done</a>
+  {% else %}
+    <button type="submit">Create</button>
+    <a href="{{ url_for('instrument_list') }}">Cancel</a>
+  {% endif %}
+</form>
+{% endblock %}
