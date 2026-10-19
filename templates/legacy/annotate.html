@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}Annotate selected files{% endblock %}
+{% block content %}
+<div class="legacy-page legacy-annotation">
+  <h2>Annotate {{ rows | length }} selected file{{ '' if rows | length == 1 else 's' }}</h2>
+  <p><a href="{{ url_for('legacy.list_files') }}">← Back to file selection</a></p>
+  <details><summary>Review selected files</summary>
+    <ul class="legacy-selected-preview">{% for row in rows %}<li>{{ row.path }}</li>{% endfor %}</ul>
+  </details>
+  <form method="post" action="{{ url_for('legacy.apply_annotation') }}" id="legacy-annotation-form">
+    {{ form.hidden_tag() }}
+    <fieldset>
+      <legend>Project and experiment</legend>
+      <p>{{ render_field(form.project) }}</p>
+      <div id="legacy-new-project">
+        <p>{{ render_field(form.new_project_code, maxlength=8, pattern="[A-Za-z0-9]+") }}</p>
+        <p>{{ render_field(form.new_project_name, maxlength=200) }}</p>
+        <p>{{ render_field(form.new_project_description, rows=3) }}</p>
+      </div>
+      <p>{{ render_field(form.experiment) }}</p>
+      <div id="legacy-new-experiment">
+        <p>{{ render_field(form.new_experiment_code, maxlength=8, pattern="[A-Za-z0-9]+") }}</p>
+        <p>{{ render_field(form.new_experiment_name, maxlength=200) }}</p>
+        <p>{{ render_field(form.new_experiment_description, rows=3) }}</p>
+      </div>
+      <p class="field-hint">Project and experiment are optional. Select a project before choosing an experiment. New codes use up to 8 letters or numbers; names default to their code if left blank. New experiments start as identification experiments and can be edited afterward.</p>
+    </fieldset>
+    <fieldset>
+      <legend>User and instrument</legend>
+      <p>{{ render_field(form.user) }}</p>
+      <p>{{ render_field(form.instrument) }}</p>
+      <p class="field-hint">Keep each file's known value, assign the same value to all selected files, or choose No selection to leave it empty.</p>
+      <p><a href="{{ url_for('user_create') }}" target="_blank" rel="noopener">Create user</a> ·
+        <a href="{{ url_for('instrument_create') }}" target="_blank" rel="noopener">Create instrument</a>
+        <small>(opens in a new tab; return to file selection to refresh choices)</small></p>
+    </fieldset>
+    <p>{{ render_field(form.existing) }}</p>
+    <p class="field-hint">Updating existing files replaces their project and experiment with your selections, including empty selections. Other file details are preserved.</p>
+    <button type="submit">Save annotations</button>
+  </form>
+  <script id="legacy-experiment-tree" type="application/json">{{ tree | tojson }}</script>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/legacy-files.js') }}" defer></script>{% endblock %}

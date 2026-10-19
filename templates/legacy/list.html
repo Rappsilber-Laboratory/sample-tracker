@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Annotate old files{% endblock %}
+{% block content %}
+<div class="legacy-page">
+  <h2>Annotate old files</h2>
+  {% if error %}
+  <p class="flash flash-error">{{ error }}</p>
+  {% else %}
+  <p>Browse {{ total }} scanned files. Filter by known values or unknown entries, select files, then annotate them together.</p>
+  <form method="get" class="legacy-filters">
+    {% for key, label in [('user', 'Scanned user'), ('instrument', 'Scanned instrument'), ('project_code', 'Scanned project code')] %}
+    <label>{{ label }}
+      <select name="{{ key }}">
+        <option value="">Any (skip this filter)</option>
+        <option value="__missing__" {% if filters[key] == '__missing__' %}selected{% endif %}>No selection / unknown</option>
+        {% for value in choices[key] %}
+        <option value="{{ value }}" {% if filters[key] == value %}selected{% endif %}>{{ value }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endfor %}
+    <label>Show
+      <select name="status">
+        {% for value, label in [('pending', 'Not in database'), ('annotated', 'Already in database'), ('all', 'All files')] %}
+        <option value="{{ value }}" {% if status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>File name or path <input type="search" name="q" value="{{ filters.q }}"></label>
+    <button type="submit">Filter</button>
+    <a href="{{ url_for('legacy.list_files') }}">Reset filters</a>
+  </form>
+  <p>{{ matched }} matching file{{ '' if matched == 1 else 's' }} · Page {{ page }} of {{ pages }}</p>
+  <form method="post" action="{{ url_for('legacy.select_files') }}" id="legacy-selection-form"
+        data-storage-key="{{ selection_key }}" data-clear-selection="{{ 'true' if request.args.get('done') == '1' else 'false' }}">
+    {{ form.hidden_tag() }}
+    <div class="legacy-selection-actions">
+      <button type="submit" id="legacy-annotate-button">Annotate selected files</button>
+      <span id="legacy-selection-count" role="status" aria-live="polite">Select up to 1,000 files.</span>
+      <button type="button" id="legacy-clear-selection">Clear selection</button>
+    </div>
+    <div class="legacy-table-wrap">
+      <table class="legacy-table">
+        <thead><tr>
+          <th><input type="checkbox" id="legacy-select-page" aria-label="Select all files on this page"></th>
+          <th>File / path</th><th>Scanned user</th><th>Scanned instrument</th><th>Scanned project</th><th>Database</th>
+        </tr></thead>
+        <tbody>
+          {% for row in rows %}
+          <tr>
+            <td><input type="checkbox" name="file_ids" value="{{ row.id }}" aria-label="Select {{ row.filename }} at {{ row.path }}"></td>
+            <td><strong>{{ row.filename }}</strong><small>{{ row.path }}</small></td>
+            <td>{{ row.user or '—' }}</td><td>{{ row.instrument or '—' }}</td><td>{{ row.project_code or '—' }}</td>
+            <td>{% if row.path in records %}
+              {% for record in records[row.path] %}
+              <a href="{{ url_for('file_detail', id=record.id) }}">File #{{ record.id }}</a>
+              {% if record.experiment_code and record.project_code %}
+              <a href="{{ url_for('experiment_detail', project_code=record.project_code, code=record.experiment_code) }}">{{ record.project_code }} / {{ record.experiment_code }}</a>
+              {% elif record.project_code %}
+              <a href="{{ url_for('project_detail', code=record.project_code) }}">{{ record.project_code }}</a>
+              {% endif %}
+              {% endfor %}
+              {% else %}Not imported{% endif %}
+            </td>
+          </tr>
+          {% else %}<tr><td colspan="6">No files match these filters.</td></tr>{% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </form>
+  <nav aria-label="Scanned file pages">
+    {% if page > 1 %}<a href="{{ page_url(page - 1) }}">← Previous</a>{% endif %}
+    <span>Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a href="{{ page_url(page + 1) }}">Next →</a>{% endif %}
+  </nav>
+  <p class="field-hint">Selections stay selected across pages and filters in this browser tab. Annotations are saved in the acquired-file database; the source TSV and files on disk are unchanged.</p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/legacy-files.js') }}" defer></script>{% endblock %}
