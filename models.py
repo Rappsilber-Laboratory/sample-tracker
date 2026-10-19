@@ -59,6 +59,16 @@ class Experiment(db.Model):
     # Varying conditions: JSON array driving the file/run list (populated later).
     varying_conditions = db.Column(db.JSON, nullable=False, default=list)
 
+    # Queue-generation settings remembered per experiment. instrument_initial
+    # references Instrument.initial loosely (plain text, not an enforced FK); the
+    # well_* columns share their names with the ExperimentForm fields.
+    instrument_initial = db.Column(db.Text)
+    well_enable = db.Column(db.Boolean, nullable=False, default=False)
+    well_order = db.Column(db.Text, nullable=False, default="rowwise")
+    well_start = db.Column(db.Text, nullable=False, default="A1")
+    well_in_filename = db.Column(db.Boolean, nullable=False, default=False)
+    well_in_position = db.Column(db.Boolean, nullable=False, default=False)
+
     # Invariant conditions defined on the experiment.
     disease = db.Column(db.Text)
     phenotype = db.Column(db.Text)

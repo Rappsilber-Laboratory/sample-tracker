@@ -620,6 +620,7 @@ def experiment_detail(project_code, code):
         form.species_ids.data = [s.id for s in experiment.species_list]
         form.cellosaurus_ids.data = [cl.cellosaurus_id for cl in experiment.cell_lines]
         form.varying_conditions.data = json.dumps(experiment.varying_conditions or [])
+        form.gen_instrument.data = experiment.instrument_initial or ""
         if experiment.user_initials:
             form.gen_user.data = experiment.user_initials
         form.gen_date.data = date.today().isoformat()
@@ -685,6 +686,11 @@ def _apply_experiment_conditions(form, experiment, discriminator):
     # populate_obj set varying_conditions to the raw hidden-field JSON string;
     # replace it with the parsed list (the actual JSON column value).
     experiment.varying_conditions = _load_varying_conditions(form.varying_conditions.data)
+    experiment.instrument_initial = (form.gen_instrument.data or "").strip() or None
+    # Keep a typed-but-invalid start as entered (generation reports it); blank -> A1.
+    experiment.well_start = (
+        _validate_well(form.well_start.data) or (form.well_start.data or "").strip() or "A1"
+    )
     _coerce_select_fields(experiment)
     _nullify_crosslink_fields(experiment)
     with db.session.no_autoflush:
@@ -1256,12 +1262,29 @@ def _generate_runs(conditions, inst, ymd, proj, user, exp, run_start, well=None)
     return rows, None
 
 
-def _build_queue_csv(rows, ymd):
+def _queue_comment(experiment):
+    """Comment column text for a generated queue: the species and, for a
+    crosslinking experiment, the crosslinker and quenching reagent. Empty parts
+    are omitted, e.g. ``Species: Homo sapiens; Crosslinker: DSSO; Quenching: Tris``.
+    """
+    parts = []
+    species = ", ".join(s.species_name for s in experiment.species_list)
+    if species:
+        parts.append(f"Species: {species}")
+    if experiment.crosslinking_experiment == 1:
+        if experiment.crosslinker:
+            parts.append(f"Crosslinker: {experiment.crosslinker}")
+        if experiment.quenching_reagent:
+            parts.append(f"Quenching: {experiment.quenching_reagent}")
+    return "; ".join(parts)
+
+
+def _build_queue_csv(rows, ymd, comment=""):
     """Thermo Xcalibur sequence CSV for the generated run list.
 
     Layout is the Xcalibur sequence format: a leading ``Bracket Type=4`` line,
     the column header row, then one row per run. Path is the instrument's data
-    folder for the day; the Comment column is left empty.
+    folder for the day; every run's Comment column gets ``comment``.
 
     Encoded UTF-8 with a BOM (``utf-8-sig``) so spreadsheet apps (Excel /
     LibreOffice) reliably detect the encoding instead of guessing a double-byte
@@ -1274,7 +1297,7 @@ def _build_queue_csv(rows, ymd):
     writer.writerow(["Bracket Type=4", "", "", "", "", ""])
     writer.writerow(["File Name", "Path", "Instrument Method", "Position", "Inj Vol", "Comment"])
     for row in rows:
-        writer.writerow([row["filename"], path, "", row.get("position", ""), "", ""])
+        writer.writerow([row["filename"], path, "", row.get("position", ""), "", comment])
     return buf.getvalue().encode("utf-8-sig")
 
 
@@ -1333,7 +1356,7 @@ def _generate_csv_or_none(form, experiment):
     if error:
         flash(error, "error")
         return None
-    csv_bytes = _build_queue_csv(rows, ymd)
+    csv_bytes = _build_queue_csv(rows, ymd, _queue_comment(experiment))
     resp = Response(csv_bytes, mimetype="text/csv")
     resp.headers["Content-Disposition"] = (
         f'attachment; filename="{inst}_{ymd}_{experiment.code}_sequence.csv"'

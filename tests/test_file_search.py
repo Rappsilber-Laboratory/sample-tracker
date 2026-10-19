@@ -8,7 +8,7 @@ os.environ["DATABASE_URL"] = "sqlite:///" + _database.name + "/test.db"
 os.environ["SECRET_KEY"] = "file-search-tests"
 
 from app import app
-from models import AcquiredFile, Experiment, Instrument, Project, User, db
+from models import AcquiredFile, Experiment, Instrument, Project, Species, User, db
 
 
 class FileSearchTests(unittest.TestCase):
@@ -97,6 +97,42 @@ class FileSearchTests(unittest.TestCase):
         for name in names:
             self.assertIn(name, response.data.decode("utf-8-sig"))
         self.assertEqual(self.search("dose")["results"], [])
+
+    def test_generate_persists_instrument_and_well_settings(self):
+        self.generate(well_enable="y", well_order="columnwise", well_start="b3", well_in_position="y")
+        db.session.expire_all()
+        experiment = db.session.get(Experiment, ("P1", "E1"))
+        self.assertEqual(experiment.instrument_initial, "MS")
+        self.assertTrue(experiment.well_enable)
+        self.assertEqual(experiment.well_order, "columnwise")
+        self.assertEqual(experiment.well_start, "B3")
+        self.assertFalse(experiment.well_in_filename)
+        self.assertTrue(experiment.well_in_position)
+        page = self.client.get("/projects/P1/experiments/E1").data.decode()
+        self.assertIn('<option selected value="MS">', page)
+        self.assertIn('value="B3"', page)
+
+    def test_queue_comment_species_only_for_identification(self):
+        db.session.add(Species(species_name="Homo sapiens", species_taxon="9606"))
+        db.session.commit()
+        response = self.generate(species_ids="1", crosslinker="DSSO", quenching_reagent="Tris")
+        lines = response.data.decode("utf-8-sig").splitlines()
+        self.assertTrue(lines[2].endswith(",Species: Homo sapiens"))
+
+    def test_queue_comment_includes_crosslinker_and_quenching(self):
+        db.session.add_all([
+            Species(species_name="Homo sapiens", species_taxon="9606"),
+            Species(species_name="Mus musculus", species_taxon="10090"),
+        ])
+        db.session.commit()
+        response = self.generate(
+            species_ids=["1", "2"], crosslinking_experiment="y",
+            crosslinker="DSSO", quenching_reagent="Tris",
+        )
+        lines = response.data.decode("utf-8-sig").splitlines()
+        self.assertTrue(lines[2].endswith(
+            ',"Species: Homo sapiens, Mus musculus; Crosslinker: DSSO; Quenching: Tris"'
+        ))
 
     def test_exact_local_filename_lookup(self):
         db.session.add_all([

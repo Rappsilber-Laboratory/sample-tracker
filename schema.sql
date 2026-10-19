@@ -43,6 +43,14 @@ CREATE TABLE experiment (
     -- Varying conditions: JSON array driving the file/run list (populated later).
     varying_conditions TEXT NOT NULL DEFAULT '[]',
 
+    -- Queue-generation settings remembered per experiment.
+    instrument_initial TEXT,
+    well_enable INTEGER NOT NULL DEFAULT 0,
+    well_order TEXT NOT NULL DEFAULT 'rowwise' CHECK(well_order IN ('rowwise', 'columnwise')),
+    well_start TEXT NOT NULL DEFAULT 'A1',
+    well_in_filename INTEGER NOT NULL DEFAULT 0,
+    well_in_position INTEGER NOT NULL DEFAULT 0,
+
     -- Invariant conditions defined on the experiment.
     disease TEXT,
     phenotype TEXT,

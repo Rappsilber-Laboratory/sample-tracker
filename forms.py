@@ -160,9 +160,10 @@ class ExperimentForm(FlaskForm):
     # (an array of {description, prefix, values, postfix} rows). Parsed on save.
     varying_conditions = HiddenField()
 
-    # Transient generation inputs (not persisted to the experiment) — used only
-    # by "Save and Generate Queue" to build the run filenames/CSV. Choices for
-    # the two selects are populated per-request in the route.
+    # Generation inputs used by "Save and Generate Queue" to build the run
+    # filenames/CSV. The instrument is persisted (as experiment.instrument_initial,
+    # mapped in the route); operator, date and run start are transient. Choices
+    # for the two selects are populated per-request in the route.
     gen_instrument = SelectField(
         "Instrument", coerce=str, validators=[Optional()], validate_choice=False
     )
@@ -172,7 +173,7 @@ class ExperimentForm(FlaskForm):
     gen_date = StringField("Date", validators=[Optional()], render_kw={"type": "date"})
     gen_run_start = IntegerField("Run number start", default=1, validators=[Optional()])
 
-    # Well-plate options (also transient generation inputs). well_enable is the
+    # Well-plate options, persisted via same-named experiment columns. well_enable is the
     # master switch; the two include_* toggles decide where the well/plate lands.
     well_enable = BooleanField("Use 96-well plate")
     well_order = SelectField(
