@@ -26,6 +26,9 @@ from forms import (
     AcquiredFileEditForm,
     AcquiredFileForm,
     InstrumentForm,
+    IssueForm,
+    IssueReplyForm,
+    IssueStatusForm,
     ProjectForm,
     SpeciesForm,
     UserForm,
@@ -38,11 +41,14 @@ from models import (
     AcquiredFile,
     IdentificationExperiment,
     Instrument,
+    Issue,
+    IssueEntry,
     Project,
     Species,
     User,
     Virus,
     db,
+    utc_now,
 )
 from sdrf_support.sdrf_columns import KNOWN_SDRF_HEADERS, column_group
 from sdrf_support.sdrf_export import (
@@ -69,6 +75,11 @@ def _configure_sqlite_connection(dbapi_connection, connection_record):
         # failing with "database is locked".
         cur.execute("PRAGMA busy_timeout=5000")
         cur.close()
+
+
+# Add the issue tables to existing installations without reinitializing their data.
+with app.app_context():
+    db.metadata.create_all(db.engine, tables=[Issue.__table__, IssueEntry.__table__])
 
 
 # ---------------------------------------------------------------------------
@@ -1331,6 +1342,51 @@ def _generate_csv_or_none(form, experiment):
 # ---------------------------------------------------------------------------
 # Files (DB records)
 # ---------------------------------------------------------------------------
+@app.route("/search")
+def file_search():
+    return render_template("file/search.html")
+
+
+@app.route("/api/files/search")
+def file_search_suggestions():
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify(results=[], has_more=False)
+
+    # Escape SQL wildcard characters: underscores and percent signs in filenames
+    # must match literally. Include archived experiments and projects as well.
+    acquired_name = func.coalesce(func.nullif(AcquiredFile.filename, ""), AcquiredFile.location)
+    acquired = db.select(
+        acquired_name.label("filename"),
+        db.literal("Acquired").label("status"),
+        AcquiredFile.id.label("file_id"),
+        Experiment.project_code.label("project_code"),
+        Experiment.code.label("experiment_code"),
+        Experiment.name.label("experiment_name"),
+        Project.name.label("project_name"),
+    ).select_from(AcquiredFile).outerjoin(AcquiredFile.experiment).outerjoin(
+        Experiment.project
+    ).where(acquired_name.icontains(query, autoescape=True))
+
+    if request.args.get("exact") == "1":
+        acquired = acquired.where(func.lower(acquired_name) == query.lower())
+    matches = db.session.execute(acquired.order_by(
+        "filename", "status", "project_code", "experiment_code", "file_id"
+    ).limit(31)).mappings().all()
+    results = []
+    for match in matches[:30]:
+        result = dict(match)
+        if match["experiment_code"] is not None:
+            result["url"] = url_for(
+                "experiment_detail", project_code=match["project_code"],
+                code=match["experiment_code"],
+            )
+        else:
+            result["url"] = url_for("file_detail", id=match["file_id"])
+        results.append(result)
+    return jsonify(results=results, has_more=len(matches) > 30)
+
+
 @app.route("/files")
 def file_list():
     files = (
@@ -1467,3 +1523,82 @@ def disk_usage():
 @app.route("/about")
 def about():
     return render_template("about.html")
+
+
+@app.route("/issues")
+def issue_list():
+    status = request.args.get("status", "open")
+    if status not in ("open", "closed", "all"):
+        abort(400)
+    query = db.select(Issue).order_by(Issue.updated_at.desc(), Issue.id.desc())
+    if status != "all":
+        query = query.where(Issue.status == status)
+    pagination = db.paginate(query, per_page=30)
+    counts = dict(db.session.execute(
+        db.select(Issue.status, func.count(Issue.id)).group_by(Issue.status)
+    ).all())
+    return render_template(
+        "issue/list.html", pagination=pagination, status=status, counts=counts,
+    )
+
+
+@app.route("/issues/new", methods=["GET", "POST"])
+def issue_create():
+    form = IssueForm()
+    if form.validate_on_submit():
+        issue = Issue(title=form.title.data, body=form.body.data, author=form.author.data)
+        db.session.add(issue)
+        db.session.commit()
+        flash("Issue created.", "success")
+        return redirect(url_for("issue_detail", id=issue.id))
+    return render_template("issue/form.html", form=form)
+
+
+def _render_issue(issue, reply_form=None, status_form=None):
+    reply_form = reply_form if reply_form is not None else IssueReplyForm(prefix="reply-")
+    if status_form is None:
+        status_form = IssueStatusForm(prefix="status-")
+        status_form.status.data = "closed" if issue.status == "open" else "open"
+    return render_template(
+        "issue/detail.html", issue=issue, reply_form=reply_form, status_form=status_form,
+    )
+
+
+@app.route("/issues/<int:id>")
+def issue_detail(id):
+    return _render_issue(db.get_or_404(Issue, id))
+
+
+@app.route("/issues/<int:id>/replies", methods=["POST"])
+def issue_reply(id):
+    issue = db.get_or_404(Issue, id)
+    form = IssueReplyForm(prefix="reply-")
+    if form.validate_on_submit():
+        db.session.add(IssueEntry(issue=issue, author=form.author.data, body=form.body.data))
+        issue.updated_at = utc_now()
+        db.session.commit()
+        flash("Response added.", "success")
+        return redirect(url_for("issue_detail", id=id, _anchor="conversation"))
+    return _render_issue(issue, reply_form=form), 422
+
+
+@app.route("/issues/<int:id>/status", methods=["POST"])
+def issue_status(id):
+    issue = db.get_or_404(Issue, id)
+    form = IssueStatusForm(prefix="status-")
+    if form.validate_on_submit():
+        now = utc_now()
+        # A repeated close/reopen request should not add duplicate history.
+        changed = db.session.execute(
+            db.update(Issue).where(Issue.id == id, Issue.status != form.status.data)
+            .values(status=form.status.data, updated_at=now)
+        ).rowcount
+        if changed:
+            db.session.add(IssueEntry(
+                issue_id=id, author=form.author.data, kind="status", created_at=now,
+                body="Closed this issue." if form.status.data == "closed" else "Reopened this issue.",
+            ))
+        db.session.commit()
+        flash("Issue status updated." if changed else "Issue already has this status.", "success")
+        return redirect(url_for("issue_detail", id=id))
+    return _render_issue(issue, status_form=form), 422

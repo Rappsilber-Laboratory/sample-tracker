@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}Issue #{{ issue.id }} · {{ issue.title }}{% endblock %}
+{% block content %}
+<div class="issues-page">
+  <p><a href="{{ url_for('issue_list', status=issue.status) }}">← Back to issues</a></p>
+  <h2>#{{ issue.id }} · {{ issue.title }}</h2>
+  <p><span class="issue-badge issue-{{ issue.status }}">{{ issue.status | capitalize }}</span>
+    Opened by {{ issue.author }} · {{ issue.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</p>
+  <div class="issue-message"><p class="issue-body">{{ issue.body }}</p></div>
+
+  <h3 id="conversation">Conversation</h3>
+  {% for entry in issue.entries %}
+  <div class="issue-message{% if entry.kind == 'status' %} issue-event{% endif %}">
+    <small><strong>{{ entry.author }}</strong> · {{ entry.created_at.strftime('%Y-%m-%d %H:%M') }} UTC</small>
+    <p class="issue-body">{{ entry.body }}</p>
+  </div>
+  {% else %}
+  <p>No responses yet.</p>
+  {% endfor %}
+
+  <h3>Add a response</h3>
+  <form method="post" action="{{ url_for('issue_reply', id=issue.id) }}" class="issue-form">
+    {{ reply_form.hidden_tag() }}
+    <p>{{ render_field(reply_form.author, maxlength=100, autocomplete="name") }}</p>
+    <p>{{ render_field(reply_form.body, rows=5, maxlength=20000) }}</p>
+    <button type="submit">Post response</button>
+  </form>
+
+  <h3>{{ 'Close issue' if issue.status == 'open' else 'Reopen issue' }}</h3>
+  <form method="post" action="{{ url_for('issue_status', id=issue.id) }}" class="issue-form issue-status-form">
+    {{ status_form.hidden_tag() }}
+    {% for error in status_form.status.errors %}<p class="field-error">{{ error }}</p>{% endfor %}
+    <p>{{ render_field(status_form.author, maxlength=100, autocomplete="name") }}</p>
+    <button type="submit">{{ 'Close issue' if issue.status == 'open' else 'Reopen issue' }}</button>
+  </form>
+</div>
+{% endblock %}

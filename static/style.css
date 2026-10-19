@@ -36,6 +36,50 @@ main {
 }
 h1, h2, h3 { font-size: 1.15em; }
 nav a { font-size: 0.92rem; }
+nav a[aria-current="page"] { color: var(--accent); border-color: var(--accent); }
+.file-search { max-width: 65rem; padding-right: 1.5rem; border: 0; }
+.file-search-controls { display: flex; gap: 0.6rem; align-items: baseline; }
+.file-search-controls input { flex: 1; min-width: 0; width: 100%; }
+.file-search-results { list-style: none; padding: 0; }
+.file-search-results li { margin: 0 0 0.5rem; }
+.file-search-results a {
+  display: block; padding: 0.8rem 1rem; border: 1px solid var(--border);
+  border-radius: 5px; text-decoration: none; overflow-wrap: anywhere;
+}
+.file-search-results a:hover, .file-search-results a:focus-visible {
+  background: var(--accent-bg); outline: 2px solid var(--accent); outline-offset: 1px;
+}
+.file-search-results small { display: block; margin-top: 0.3rem; color: var(--text-light); }
+.file-search-badge {
+  display: inline-block; margin-left: 0.6rem; padding: 0.1rem 0.4rem;
+  border-radius: 4px; background: var(--accent-bg); color: var(--text); font-size: 0.75rem;
+}
+.local-file-result {
+  padding: 0.8rem 1rem; border: 1px solid var(--border);
+  border-radius: 5px; overflow-wrap: anywhere;
+}
+.local-file-result > small { display: block; color: var(--text-light); margin-top: 0.3rem; }
+.local-file-result button { margin: 0.5rem 0 0; padding: 0.3rem 0.6rem; }
+.local-experiment-matches:not(:empty) { margin-top: 0.6rem; }
+#local-search-input { width: 100%; }
+
+.issues-page { max-width: 65rem; padding: 0 1.5rem 2rem 0; overflow-wrap: anywhere; }
+.issues-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.issue-filters { display: flex; flex-wrap: wrap; gap: 0.5rem; margin: 1rem 0; }
+.issue-filters a { margin: 0; }
+.issue-list { list-style: none; padding: 0; }
+.issue-list li, .issue-message {
+  border: 1px solid var(--border); border-radius: 5px; padding: 0.8rem 1rem; margin-bottom: 0.7rem;
+}
+.issue-list small { display: block; margin-top: 0.4rem; color: var(--text-light); }
+.issue-badge { display: inline-block; padding: 0.1rem 0.5rem; border-radius: 4px; margin-right: 0.5rem; }
+.issue-open { background: #def2df; color: #175225; }
+.issue-closed { background: #ece6fa; color: #513180; }
+.issue-body { white-space: pre-wrap; overflow-wrap: anywhere; }
+.issue-message > :last-child { margin-bottom: 0; }
+.issue-event { background: var(--accent-bg); }
+.issue-form input[type="text"], .issue-form textarea { width: 100%; box-sizing: border-box; }
+.issue-status-form { max-width: 28rem; }
 table { font-size: 0.88rem; }
 input, select, textarea, button { font-size: 0.92rem; }
 label { font-size: 0.92rem; }

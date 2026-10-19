@@ -11,6 +11,7 @@
 <body>
   <header>
     <nav>
+      <a href="{{ url_for('file_search') }}" {% if request.endpoint == 'file_search' %}aria-current="page"{% endif %}>Search</a>
       <a href="{{ url_for('project_list') }}">{{ nav_counts.get('projects', '') }} Projects</a>
       <a href="{{ url_for('experiment_list') }}">{{ nav_counts.get('experiments', '') }} Experiments</a>
       <a href="{{ url_for('species_list') }}">{{ nav_counts.get('species', '') }} Species</a>
@@ -20,6 +21,7 @@
       <a href="{{ url_for('instrument_list') }}">{{ nav_counts.get('instruments', '') }} Instruments</a>
       <a href="{{ url_for('user_list') }}">{{ nav_counts.get('users', '') }} Users</a>
       <a href="{{ url_for('sdrf_editor') }}">SDRF Export</a>
+      <a href="{{ url_for('issue_list') }}" {% if request.endpoint and request.endpoint.startswith('issue_') %}aria-current="page"{% endif %}>Issues</a>
 {#      <a href="{{ url_for('instrument_usage') }}">Instrument Usage</a>#}
 {#      <a href="{{ url_for('disk_usage') }}">Disk Usage</a>#}
 {#      <a href="{{ url_for('about') }}">About</a>#}

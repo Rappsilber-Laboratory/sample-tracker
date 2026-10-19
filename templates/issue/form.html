@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% from "_form_helpers.html" import render_field %}
+{% block title %}New issue{% endblock %}
+{% block content %}
+<div class="issues-page">
+  <h2>New issue</h2>
+  <p>Describe the problem and what you expected to happen.</p>
+  <form method="post" class="issue-form">
+    {{ form.hidden_tag() }}
+    <p>{{ render_field(form.title, maxlength=200) }}</p>
+    <p>{{ render_field(form.author, maxlength=100, autocomplete="name") }}</p>
+    <p>{{ render_field(form.body, rows=8, maxlength=20000) }}</p>
+    <button type="submit">Create issue</button>
+    <a href="{{ url_for('issue_list') }}">Cancel</a>
+  </form>
+</div>
+{% endblock %}

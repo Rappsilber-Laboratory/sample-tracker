@@ -3,6 +3,27 @@
 
 PRAGMA foreign_keys = ON;
 
+CREATE TABLE IF NOT EXISTS issue (
+    id INTEGER PRIMARY KEY,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    author TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open', 'closed')),
+    created_at DATETIME NOT NULL,
+    updated_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_issue_status ON issue(status);
+
+CREATE TABLE IF NOT EXISTS issue_entry (
+    id INTEGER PRIMARY KEY,
+    issue_id INTEGER NOT NULL REFERENCES issue(id),
+    author TEXT NOT NULL,
+    body TEXT NOT NULL,
+    kind TEXT NOT NULL DEFAULT 'reply' CHECK(kind IN ('reply', 'status')),
+    created_at DATETIME NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_issue_entry_issue_id ON issue_entry(issue_id);
+
 CREATE TABLE project (
     code TEXT NOT NULL PRIMARY KEY,
     name TEXT NOT NULL,

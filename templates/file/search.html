@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Search files{% endblock %}
+{% block content %}
+<section class="file-search" aria-labelledby="search-heading">
+  <h2 id="search-heading">Search files</h2>
+  <h3>Acquired files</h3>
+  <p>Find an acquired file in the database and open its experiment.</p>
+  <form id="file-search-form" role="search" action="{{ url_for('file_search') }}" method="get"
+        data-search-url="{{ url_for('file_search_suggestions') }}">
+    <label for="file-search-input">File name or part of a file name</label>
+    <div class="file-search-controls">
+      <input id="file-search-input" name="q" type="search" autocomplete="off" autofocus
+             placeholder="Start typing a file name…" aria-controls="file-search-results"
+             value="{{ request.args.get('q', '') }}">
+      <button type="submit">Search</button>
+    </div>
+  </form>
+  <p id="file-search-status" role="status" aria-live="polite">Type to see suggestions from acquired files.</p>
+  <ul id="file-search-results" class="file-search-results" aria-label="Matching files"></ul>
+  <hr>
+  <h3>Local folder search</h3>
+  <p>Choose a folder on your computer, then search filenames inside it and its subfolders.</p>
+  <label for="local-folder-input">Select folder</label>
+  <input id="local-folder-input" type="file" webkitdirectory multiple aria-describedby="local-folder-help">
+  <p id="local-folder-help" class="field-hint">Files stay on your computer. Results show paths relative to the selected folder.</p>
+  <p id="local-folder-summary">No folder selected.</p>
+  <label for="local-search-input">Local file name or part of a file name</label>
+  <input id="local-search-input" type="search" autocomplete="off" disabled
+         placeholder="Select a folder first…" aria-controls="local-search-results">
+  <p id="local-search-status" role="status" aria-live="polite">Select a folder to start searching.</p>
+  <ul id="local-search-results" class="file-search-results" aria-label="Matching local files"></ul>
+  <noscript><p>Enable JavaScript to see file suggestions.</p></noscript>
+</section>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/file-search.js') }}" defer></script>
+{% endblock %}

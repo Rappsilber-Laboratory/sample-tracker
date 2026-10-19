@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Issues{% endblock %}
+{% block content %}
+<div class="issues-page">
+  <div class="issues-heading">
+    <h2>Issues</h2>
+    <a href="{{ url_for('issue_create') }}" role="button">New issue</a>
+  </div>
+  <p>Track problems, share responses, and close issues when they are resolved.</p>
+  <nav class="issue-filters" aria-label="Filter issues">
+    {% for value, label in [('open', 'Open'), ('closed', 'Closed'), ('all', 'All')] %}
+    <a href="{{ url_for('issue_list', status=value) }}" {% if status == value %}aria-current="page"{% endif %}>
+      {{ label }} ({{ counts.values() | sum if value == 'all' else counts.get(value, 0) }})
+    </a>
+    {% endfor %}
+  </nav>
+  <ul class="issue-list">
+    {% for issue in pagination.items %}
+    <li>
+      <span class="issue-badge issue-{{ issue.status }}">{{ issue.status | capitalize }}</span>
+      <a href="{{ url_for('issue_detail', id=issue.id) }}"><strong>#{{ issue.id }} · {{ issue.title }}</strong></a>
+      <small>Opened by {{ issue.author }} · Updated {{ issue.updated_at.strftime('%Y-%m-%d %H:%M') }} UTC</small>
+    </li>
+    {% else %}
+    <li>No {{ status if status != 'all' else '' }} issues yet.</li>
+    {% endfor %}
+  </ul>
+  {% if pagination.pages > 1 %}
+  <nav aria-label="Issue pages">
+    {% if pagination.has_prev %}<a href="{{ url_for('issue_list', status=status, page=pagination.prev_num) }}">← Previous</a>{% endif %}
+    <span>Page {{ pagination.page }} of {{ pagination.pages }}</span>
+    {% if pagination.has_next %}<a href="{{ url_for('issue_list', status=status, page=pagination.next_num) }}">Next →</a>{% endif %}
+  </nav>
+  {% endif %}
+</div>
+{% endblock %}

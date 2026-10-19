@@ -10,7 +10,27 @@ from wtforms import (
     TextAreaField,
     widgets,
 )
-from wtforms.validators import DataRequired, Optional, ValidationError
+from wtforms.validators import AnyOf, DataRequired, Length, Optional, ValidationError
+
+
+def _strip_text(value):
+    return value.strip() if isinstance(value, str) else value
+
+
+class IssueForm(FlaskForm):
+    title = StringField("Title", filters=[_strip_text], validators=[DataRequired(), Length(max=200)])
+    author = StringField("Your name", filters=[_strip_text], validators=[DataRequired(), Length(max=100)])
+    body = TextAreaField("Description", filters=[_strip_text], validators=[DataRequired(), Length(max=20000)])
+
+
+class IssueReplyForm(FlaskForm):
+    author = StringField("Your name", filters=[_strip_text], validators=[DataRequired(), Length(max=100)])
+    body = TextAreaField("Response", filters=[_strip_text], validators=[DataRequired(), Length(max=20000)])
+
+
+class IssueStatusForm(FlaskForm):
+    author = StringField("Your name", filters=[_strip_text], validators=[DataRequired(), Length(max=100)])
+    status = HiddenField(validators=[DataRequired(), AnyOf(["open", "closed"])])
 
 
 def valid_code(form, field):

@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from flask_sqlalchemy import SQLAlchemy
 
 db = SQLAlchemy()
@@ -191,3 +193,39 @@ class Instrument(db.Model):
     initial = db.Column(db.Text, primary_key=True, nullable=False)
     name = db.Column(db.Text, nullable=False)
     model = db.Column(db.Text)
+
+
+def utc_now():
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+class Issue(db.Model):
+    __tablename__ = "issue"
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.Text, nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    author = db.Column(db.Text, nullable=False)
+    status = db.Column(db.Text, nullable=False, default="open", index=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    updated_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    __table_args__ = (db.CheckConstraint("status IN ('open', 'closed')"),)
+
+    entries = db.relationship(
+        "IssueEntry", back_populates="issue", cascade="all, delete-orphan",
+        order_by="IssueEntry.created_at, IssueEntry.id",
+    )
+
+
+class IssueEntry(db.Model):
+    __tablename__ = "issue_entry"
+
+    id = db.Column(db.Integer, primary_key=True)
+    issue_id = db.Column(db.Integer, db.ForeignKey("issue.id"), nullable=False, index=True)
+    author = db.Column(db.Text, nullable=False)
+    body = db.Column(db.Text, nullable=False)
+    kind = db.Column(db.Text, nullable=False, default="reply")
+    created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
+    __table_args__ = (db.CheckConstraint("kind IN ('reply', 'status')"),)
+
+    issue = db.relationship("Issue", back_populates="entries")
