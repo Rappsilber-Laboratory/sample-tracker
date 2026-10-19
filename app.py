@@ -19,6 +19,7 @@ from flask_wtf import CSRFProtect
 from sqlalchemy.orm import joinedload
 
 from config import Config
+from legacy_files import legacy
 from forms import (
     CellLineForm,
     ExperimentForm,
@@ -64,6 +65,7 @@ app = Flask(__name__)
 app.config.from_object(Config)
 db.init_app(app)
 CSRFProtect(app)
+app.register_blueprint(legacy)
 
 
 @event.listens_for(Engine, "connect")
@@ -502,9 +504,9 @@ def project_detail(code):
     )
     contact_name = contact_user.name if contact_user else project.user_initials
     files = (
-        AcquiredFile.query.join(Experiment)
+        AcquiredFile.query
         .options(joinedload(AcquiredFile.experiment).joinedload(Experiment.project))
-        .filter(Experiment.project_code == code)
+        .filter(AcquiredFile.project_code == code)
         .order_by(AcquiredFile.file_date.desc(), AcquiredFile.filename).all()
     )
     total_size_gb = sum(f.size_bytes or 0 for f in files) / 1e9
@@ -1448,6 +1450,8 @@ def file_edit(id):
     # server-side choices only need to contain the currently-selected value so
     # WTForms validates the POST.
     form.experiment_code.choices = [("", "—")]
+    if request.method == "GET":
+        form.project_code.data = f.project_code
     if request.method == "GET" and f.experiment is not None:
         e = f.experiment
         exp_token = _exp_token(e.project_code, e.code)
@@ -1462,7 +1466,11 @@ def file_edit(id):
         if len(parts) == 2:
             f.project_code, f.experiment_code = parts
         else:
-            f.project_code = f.experiment_code = None
+            project_code = form.project_code.data
+            if project_code:
+                db.get_or_404(Project, project_code)
+            f.project_code = project_code or None
+            f.experiment_code = None
         db.session.commit()
         if _is_autosave():
             return _autosave_json(form, True)

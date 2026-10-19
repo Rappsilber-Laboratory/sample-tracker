@@ -52,3 +52,24 @@ database configured with `DATABASE_URL`). They survive browser and server restar
 include this database in backups. The app creates the issue tables automatically
 on startup, so existing installations do not need to run `init-db` again.
 Names are entered by users, as the app has no sign-in system.
+
+## Annotate old files
+
+Open **Annotate old** after **Issues** to browse
+`scanned_files_12102026_mapped.tsv` on the host. Set `LEGACY_SCAN_PATH` to use a
+different TSV with `file_name`, `path`, `user`, `instrument`, and `project_code`
+columns. Missing values such as `nan` are treated as unknown.
+
+Filter by scanned user, instrument, or project; leave a filter on **Any** to skip
+it, or choose **No selection / unknown** to find missing values. Select up to
+1,000 files across pages, then click **Annotate selected files**. Assign an
+existing project and experiment or create them in the annotation form. Either
+assignment may be empty. For user and instrument, preserve each file's known
+value, select a shared value, or leave it empty.
+
+Saving creates acquired-file records in the host database, so they appear in file
+search and their assigned experiments. Existing records are matched by full path
+and skipped by default; updating them must be explicitly selected. File sizes and
+dates stay empty because the scan does not provide them. The TSV and physical
+files are unchanged. New experiments can be further configured on their experiment
+page after importing.

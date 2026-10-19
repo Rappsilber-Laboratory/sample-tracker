@@ -11,6 +11,9 @@ _DEBUG = os.environ.get("FLASK_DEBUG", "").lower() in ("1", "true", "on")
 
 
 class Config:
+    LEGACY_SCAN_PATH = os.environ.get(
+        "LEGACY_SCAN_PATH", os.path.join(basedir, "scanned_files_12102026_mapped.tsv")
+    )
     SECRET_KEY = os.environ.get("SECRET_KEY") or (_DEV_SECRET if _DEBUG else None)
     if not SECRET_KEY:
         raise RuntimeError(

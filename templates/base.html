@@ -22,6 +22,7 @@
       <a href="{{ url_for('user_list') }}">{{ nav_counts.get('users', '') }} Users</a>
       <a href="{{ url_for('sdrf_editor') }}">SDRF Export</a>
       <a href="{{ url_for('issue_list') }}" {% if request.endpoint and request.endpoint.startswith('issue_') %}aria-current="page"{% endif %}>Issues</a>
+      <a href="{{ url_for('legacy.list_files') }}" {% if request.blueprint == 'legacy' %}aria-current="page"{% endif %}>Annotate old</a>
 {#      <a href="{{ url_for('instrument_usage') }}">Instrument Usage</a>#}
 {#      <a href="{{ url_for('disk_usage') }}">Disk Usage</a>#}
 {#      <a href="{{ url_for('about') }}">About</a>#}

@@ -67,7 +67,7 @@
       <td>{{ f.file_date or '' }}</td>
       <td><a href="{{ url_for('file_detail', id=f.id) }}">{% if f.experiment %}{{ highlight_codes(f.filename or f.id|string, f.experiment.project.code, f.experiment.code) }}{% else %}{{ f.filename or f.id }}{% endif %}</a></td>
       <td>{{ f.location or '' }}</td>
-      <td>{% if f.experiment %}<a href="{{ url_for('project_detail', code=f.experiment.project_code) }}">{{ f.experiment.project.name }}</a>{% else %}—{% endif %}</td>
+      <td>{% if f.experiment %}<a href="{{ url_for('project_detail', code=f.experiment.project_code) }}">{{ f.experiment.project.name }}</a>{% elif f.project_code %}<a href="{{ url_for('project_detail', code=f.project_code) }}">{{ f.project_code }}</a>{% else %}—{% endif %}</td>
       <td>{% if f.experiment %}<a href="{{ url_for('experiment_detail', project_code=f.experiment.project_code, code=f.experiment.code) }}">{{ f.experiment.name or f.experiment.code }}</a>{% else %}—{% endif %}</td>
       <td>{{ '%.3f'|format(f.size_bytes / 1e9) if f.size_bytes is not none else '' }}</td>
       <td>{{ f.scan_count or '' }}</td>
