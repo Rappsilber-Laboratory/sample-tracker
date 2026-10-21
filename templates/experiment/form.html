@@ -34,62 +34,7 @@
     <p>{{ render_field(form.crosslinking_experiment) }}</p>
   </fieldset>
 
-  {# ---- Middle section: variable conditions ----------------------------- #}
-  <details open id="variable-conditions"
-           data-project="{{ experiment.project_code }}"
-           data-exp="{{ experiment.code }}">
-    <summary>Variable Conditions</summary>
-
-    <table id="vc-table" class="vc-table">
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th>Prefix</th>
-          <th>Values</th>
-          <th>Postfix</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-    <p><button type="button" id="vc-add-row">+ Add row</button></p>
-
-    <p class="field-hint">
-      <strong>Values</strong> is a comma-separated list (e.g. <code>LB, MM</code>) or a range
-      <code>x - y @ z</code> where z (the step, optional, default 1) — e.g. <code>2-8@2</code>
-      → 2, 4, 6, 8. Each row contributes <code>prefix + value + postfix</code> to the filename;
-      the queue is every combination of all rows. Description is a label only (not in the filename).
-    </p>
-
-    <fieldset class="vc-well-inputs" id="well-plate-options">
-      <legend>Well Plate</legend>
-      <span>{{ form.well_enable() }} {{ form.well_enable.label }}</span>
-      <span>{{ form.well_order.label }} {{ form.well_order() }}</span>
-      <span>{{ form.well_start.label }} {{ form.well_start(size="4", style="width:4rem") }}</span>
-      <span>{{ form.well_in_filename() }} {{ form.well_in_filename.label }}</span>
-      <span>{{ form.well_in_position() }} {{ form.well_in_position.label }}</span>
-    </fieldset>
-
-    <fieldset class="vc-gen-inputs">
-      <legend>Generate queue</legend>
-      <span>{{ form.gen_instrument.label }} {{ form.gen_instrument() }}</span>
-      <span>{{ form.gen_user.label }} {{ form.gen_user() }}</span>
-      <span>{{ form.gen_date.label }} {{ form.gen_date() }}</span>
-      <span>{{ form.gen_run_start.label }} {{ form.gen_run_start(min="1", step="1", style="width:6rem") }}</span>
-    </fieldset>
-
-    <p>
-      <button type="submit" name="action" value="generate">Generate Queue</button>
-      <span class="autosave-status"></span>
-    </p>
-
-    <details open id="vc-preview-wrap">
-      <summary>Filename preview</summary>
-      <div id="vc-preview"></div>
-    </details>
-  </details>
-
-  {# ---- Bottom section: invariant conditions ---------------------------- #}
+  {# ---- Middle section: invariant conditions ---------------------------- #}
   <details id="invariant-conditions">
     <summary>Invariant Conditions</summary>
 
@@ -171,6 +116,61 @@
         <p>{{ render_field(form.organism_age_unit) }}</p>
         <p>{{ render_field(form.organism_sex) }}</p>
       </fieldset>
+    </details>
+  </details>
+
+  {# ---- End section: variable conditions ----------------------------- #}
+  <details open id="variable-conditions"
+           data-project="{{ experiment.project_code }}"
+           data-exp="{{ experiment.code }}">
+    <summary>Variable Conditions</summary>
+
+    <table id="vc-table" class="vc-table">
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th>Prefix</th>
+          <th>Values</th>
+          <th>Postfix (Units?)</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <p><button type="button" id="vc-add-row">+ Add row</button></p>
+
+    <p class="field-hint">
+      <strong>Values</strong> is a comma-separated list (e.g. <code>LB, MM</code>) or a range
+      <code>x - y @ z</code> where z (the step, optional, default 1) — e.g. <code>2-8@2</code>
+      → 2, 4, 6, 8. Each row contributes <code>prefix + value + postfix</code> to the filename;
+      the queue is every combination of all rows. Description is a label only (not in the filename).
+    </p>
+
+    <fieldset class="vc-well-inputs" id="well-plate-options">
+      <legend>Well Plate</legend>
+      <span>{{ form.well_enable() }} {{ form.well_enable.label }}</span>
+      <span>{{ form.well_order.label }} {{ form.well_order() }}</span>
+      <span>{{ form.well_start.label }} {{ form.well_start(size="4", style="width:4rem") }}</span>
+      <span>{{ form.well_in_filename() }} {{ form.well_in_filename.label }}</span>
+      <span>{{ form.well_in_position() }} {{ form.well_in_position.label }}</span>
+    </fieldset>
+
+    <fieldset class="vc-gen-inputs">
+      <legend>Generate queue</legend>
+      <span>{{ form.gen_instrument.label }} {{ form.gen_instrument() }}</span>
+      <span>{{ form.gen_user.label }} {{ form.gen_user() }}</span>
+      <span>{{ form.gen_date.label }} {{ form.gen_date() }}</span>
+      <span>{{ form.gen_run_start.label }} {{ form.gen_run_start(min="1", step="1", style="width:6rem") }}</span>
+    </fieldset>
+
+    <p>
+      <button type="submit" name="action" value="generate">Generate Queue</button>
+      <span class="autosave-status"></span>
+    </p>
+
+    <details open id="vc-preview-wrap">
+      <summary>Filename preview</summary>
+      <div id="vc-preview"></div>
     </details>
   </details>
 
