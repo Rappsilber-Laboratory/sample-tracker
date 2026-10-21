@@ -3,6 +3,20 @@
 {% block title %}Experiments{% endblock %}
 {% block content %}
 <h2>Experiments</h2>
+{% if projects %}
+<form action="{{ url_for('experiment_create_choose_project') }}" method="get">
+  <label for="new-experiment-project">Project for new experiment</label>
+  <select id="new-experiment-project" name="project_code" required>
+    <option value="">Select project</option>
+    {% for project in projects %}
+    <option value="{{ project.code }}">{{ project.code }} — {{ project.name }}{% if not project.active %} (archived){% endif %}</option>
+    {% endfor %}
+  </select>
+  <button type="submit">New Experiment</button>
+</form>
+{% else %}
+<p><a href="{{ url_for('project_create') }}">Create a project</a> before adding an experiment.</p>
+{% endif %}
 <p>
   {% if show_archived %}
     <a href="{{ url_for('experiment_list') }}">Hide archived</a>

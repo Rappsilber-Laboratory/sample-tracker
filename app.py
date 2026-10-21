@@ -79,9 +79,35 @@ def _configure_sqlite_connection(dbapi_connection, connection_record):
         cur.close()
 
 
-# Add the issue tables to existing installations without reinitializing their data.
+def _upgrade_experiment_queue_columns(engine):
+    """Add queue settings to databases created before those fields existed."""
+    if engine.dialect.name != "sqlite":
+        return
+    columns = {
+        "instrument_initial": "TEXT",
+        "well_enable": "INTEGER NOT NULL DEFAULT 0",
+        "well_order": "TEXT NOT NULL DEFAULT 'rowwise' CHECK(well_order IN ('rowwise', 'columnwise'))",
+        "well_start": "TEXT NOT NULL DEFAULT 'A1'",
+        "well_in_filename": "INTEGER NOT NULL DEFAULT 0",
+        "well_in_position": "INTEGER NOT NULL DEFAULT 0",
+    }
+    with engine.begin() as connection:
+        existing = {
+            row[1] for row in connection.exec_driver_sql("PRAGMA table_info(experiment)")
+        }
+        if not existing:  # A fresh database gets the full table from init-db.
+            return
+        for name, definition in columns.items():
+            if name not in existing:
+                connection.exec_driver_sql(
+                    f"ALTER TABLE experiment ADD COLUMN {name} {definition}"
+                )
+
+
+# Add tables and columns to existing installations without reinitializing data.
 with app.app_context():
     db.metadata.create_all(db.engine, tables=[Issue.__table__, IssueEntry.__table__])
+    _upgrade_experiment_queue_columns(db.engine)
 
 
 # ---------------------------------------------------------------------------
@@ -595,8 +621,22 @@ def experiment_list():
     if not show_archived:
         q = q.filter(Project.active == True, Experiment.active == True)  # noqa: E712
     experiments = q.order_by(Experiment.name).all()
+    projects = Project.query.order_by(Project.name).all()
     users = {u.initials: u.name for u in User.query.all()}
-    return render_template("experiment/list.html", experiments=experiments, users=users, show_archived=show_archived)
+    return render_template(
+        "experiment/list.html", experiments=experiments, projects=projects,
+        users=users, show_archived=show_archived,
+    )
+
+
+@app.route("/experiments/new")
+def experiment_create_choose_project():
+    """Send the global create control to the selected project's create form."""
+    project_code = request.args.get("project_code", "")
+    if not project_code:
+        abort(400, description="Choose a project for the new experiment.")
+    db.get_or_404(Project, project_code)
+    return redirect(url_for("experiment_create", project_code=project_code))
 
 
 @app.route("/projects/<project_code>/experiments/<code>", methods=["GET", "POST"])

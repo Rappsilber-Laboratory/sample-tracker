@@ -14,6 +14,10 @@ python3 -m flask --app app init-db
 FLASK_DEBUG=1 python3 -m flask --app app run
 ```
 
+Run `init-db` only when creating a new database. When an existing SQLite database
+starts with an older `experiment` table, the app adds the experiment queue fields
+automatically and keeps its existing records.
+
 For any non-debug / shared deployment, set a real secret instead of using debug mode —
 the app refuses to start otherwise:
 

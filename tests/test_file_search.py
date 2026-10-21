@@ -41,6 +41,20 @@ class FileSearchTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         return response.get_json()
 
+    def test_create_experiment_from_experiments_page(self):
+        page = self.client.get("/experiments")
+        self.assertEqual(page.status_code, 200)
+        self.assertIn(b"New Experiment", page.data)
+        self.assertIn(b'name="project_code"', page.data)
+        selected = self.client.get("/experiments/new", query_string={"project_code": "P1"})
+        self.assertEqual(selected.status_code, 302)
+        self.assertTrue(selected.location.endswith("/projects/P1/experiments/new"))
+        created = self.client.post(selected.location, data={"code": "E02"})
+        self.assertEqual(created.status_code, 302)
+        self.assertTrue(created.location.endswith("/projects/P1/experiments/E02"))
+        self.assertIsNotNone(db.session.get(Experiment, ("P1", "E02")))
+        self.assertEqual(self.client.get(created.location).status_code, 200)
+
     def test_partial_case_insensitive_and_literal_wildcards(self):
         db.session.add_all([
             AcquiredFile(filename="Sample_A%1.raw", project_code="P1", experiment_code="E1"),
