@@ -22,6 +22,6 @@ class Config:
             "or run in debug mode (FLASK_DEBUG=1) to use the insecure dev default."
         )
     SQLALCHEMY_DATABASE_URI = os.environ.get(
-        "DATABASE_URL", "sqlite:///" + os.path.join(basedir, "acquisitions.db")
+        "DATABASE_URL", "sqlite:////data/new_storage/Ahmad/sample_database_inter/acquisitions.db"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False

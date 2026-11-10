@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% from "copy_status/_macros.html" import badge, size, heartbeat, request_buttons, machines %}
+{% block title %}{{ row.file_name }}: copy status{% endblock %}
+{% block content %}
+<div class="copy-page" id="copy-page" data-live-url="{{ url_for('copy_status.live') }}" data-availability="{{ copy_machines|map(attribute='available')|list|tojson|forceescape }}" data-counts="null">
+  <p><a href="{{ url_for('copy_status.overview') }}">← Copy status</a></p>
+  <h2>{{ row.file_name }} · {{ copy_machine_label }}</h2>
+  {{ machines(copy_machines, copy_machine) }}
+  {{ heartbeat(service) }}
+  <p>{{ badge(row.status) }} {{ row.message or '' }}</p>
+  {{ request_buttons(row, pending, request.full_path) }}
+  <table class="copy-detail">
+    <tr><th>Acquisition date</th><td>{{ row.acq_date or '—' }}</td></tr>
+    <tr><th>Instrument</th><td>{{ row.instrument or '—' }}{% if row.instrument_folder %} → {{ row.instrument_folder }}{% endif %}</td></tr>
+    <tr><th>Project / experiment</th><td>{{ row.project_code or '—' }} / {{ row.experiment_code or '—' }}</td></tr>
+    <tr><th>Acquired by (file name)</th><td>{{ users.get(row.user_initials, row.user_initials) if row.user_initials else '—' }}</td></tr>
+    <tr><th>Contact (experiment)</th><td>{{ users.get(row.contact, row.contact) if row.contact else '—' }}</td></tr>
+    <tr><th>Size</th><td>{{ size(row.size_bytes) }}</td></tr>
+    <tr><th>Source</th><td><code>{{ row.source_path }}</code></td></tr>
+    <tr><th>Renamed to</th><td>{% if row.renamed_path %}<code>{{ row.renamed_path }}</code>{% else %}—{% endif %}</td></tr>
+    <tr><th>Server copy</th><td>{% if row.destination_path %}<code>{{ row.destination_path }}</code>{% else %}—{% endif %}</td></tr>
+    <tr><th>SHA-256</th><td>{% if row.sha256 %}<code>{{ row.sha256 }}</code>{% else %}—{% endif %}</td></tr>
+    <tr><th>Attempts</th><td>{{ row.attempts }}</td></tr>
+    <tr><th>Copied at</th><td>{{ row.copied_at or '—' }}</td></tr>
+    <tr><th>In sample database</th><td>{% if row.acquired_file_id %}<a href="{{ url_for('file_detail', id=row.acquired_file_id) }}">File #{{ row.acquired_file_id }}</a>{% else %}—{% endif %}</td></tr>
+    <tr><th>First / last seen</th><td>{{ row.first_seen }} / {{ row.last_seen }}</td></tr>
+  </table>
+  <h3>History</h3>
+  <ol class="copy-history">
+    {% for ev in events %}
+    <li><time>{{ ev.at }}</time> {{ badge(ev.event) if ev.event in ('copying','waiting','locked','failed','copied','ignored') else ev.event }}
+      <span>{{ ev.message or '' }}</span></li>
+    {% else %}<li>No events.</li>{% endfor %}
+  </ol>
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/copy-status.js') }}" defer></script>{% endblock %}

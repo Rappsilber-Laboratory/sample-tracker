@@ -20,6 +20,7 @@ from sqlalchemy.orm import joinedload
 
 from config import Config
 from legacy_files import legacy
+from copy_status import copy_status
 from forms import (
     CellLineForm,
     ExperimentForm,
@@ -63,9 +64,28 @@ from sdrf_support.sdrf_export import (
 
 app = Flask(__name__)
 app.config.from_object(Config)
+
+# ---------------------------------------------------------------------------
+# Copy service (db_match/copy_raw_files.py)
+# Each instrument PC writes its own matching DB and cache folder.
+# These paths must match MATCHING_DB_PATH / CACHE_DIR in copy_raw_files.py,
+# as seen from the web server. Missing services remain visible with warnings.
+COPY_MATCHING_DB_PATHS = {
+    "astral": r"/data/new_storage/Ahmad/sample_database_inter/matching_db_astral.sqlite",
+    "zoom": r"/data/new_storage/Ahmad/sample_database_inter/matching_db_zoom.sqlite",
+    "raptor": r"/data/new_storage/Ahmad/sample_database_inter/matching_db_raptor.sqlite",
+}
+COPY_CACHE_DIRS = {
+    "astral": r"/data/new_storage/Ahmad/sample_database_inter/cache_astral",
+    "zoom": r"/data/new_storage/Ahmad/sample_database_inter/cache_zoom",
+    "raptor": r"/data/new_storage/Ahmad/sample_database_inter/cache_raptor",
+}
+app.config.setdefault("COPY_MATCHING_DB_PATHS", COPY_MATCHING_DB_PATHS)
+app.config.setdefault("COPY_CACHE_DIRS", COPY_CACHE_DIRS)
 db.init_app(app)
 CSRFProtect(app)
 app.register_blueprint(legacy)
+app.register_blueprint(copy_status)
 
 
 @event.listens_for(Engine, "connect")

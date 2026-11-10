@@ -1,0 +1,79 @@
+{% macro badge(status) -%}
+{%- set labels = {
+  'copying': ('⇪', 'Copying'), 'waiting': ('⏳', 'Waiting'), 'locked': ('🔒', 'File open'),
+  'failed': ('⚠', 'Failed'), 'copied': ('✓', 'Copied'), 'ignored': ('⊘', 'Ignored')} -%}
+{%- set icon, label = labels.get(status, ('?', status)) -%}
+<span class="copy-badge copy-badge-{{ status }}"><span aria-hidden="true">{{ icon }}</span> {{ label }}</span>
+{%- endmacro %}
+
+{% macro size(bytes) -%}
+{%- if bytes is none %}—{% elif bytes >= 1024**3 %}{{ '%.2f'|format(bytes / 1024**3) }} GB{% else %}{{ '%.0f'|format(bytes / 1024**2) }} MB{% endif -%}
+{%- endmacro %}
+
+{% macro heartbeat(service) -%}
+<div class="copy-heartbeat copy-health-{{ service.health }}" id="copy-heartbeat" role="status" aria-live="polite">
+  <span class="copy-dot" aria-hidden="true"></span>
+  <span id="copy-heartbeat-text">
+  {%- if service.health == 'unknown' -%}
+    The copy service has not reported yet (no status.json in the cache folder).
+  {%- elif service.health == 'running' -%}
+    Copy service is running now on {{ service.host }}.
+  {%- elif service.health == 'error' -%}
+    Last run on {{ service.host }} failed {{ service.minutes_ago }} min ago: {{ service.message }}
+  {%- elif service.health == 'stale' -%}
+    No run for {{ service.minutes_ago }} min. Is the scheduled task on {{ service.host }} still active?
+  {%- else -%}
+    Last run on {{ service.host }} {{ service.minutes_ago }} min ago
+    {%- if service.next_in_minutes is not none %} · next run in ≈ {{ service.next_in_minutes }} min{% endif %}.
+  {%- endif -%}
+  </span>
+</div>
+<div class="copy-current" id="copy-current" {% if not service.current %}hidden{% endif %}>
+  <div class="copy-current-head">
+    <strong id="copy-current-file">{{ service.current.file if service.current else '' }}</strong>
+    <span id="copy-current-phase">{{ service.current.phase if service.current else '' }}</span>
+    <span id="copy-current-speed">{{ service.current.speed if service.current else '' }}</span>
+  </div>
+  <div class="copy-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100"
+       aria-valuenow="{{ service.current.percent if service.current else 0 }}">
+    <div class="copy-progress-bar" id="copy-current-bar" style="width: {{ service.current.percent if service.current else 0 }}%"></div>
+  </div>
+</div>
+{%- endmacro %}
+
+{% macro request_buttons(row, pending, next_url) -%}
+{% if row.id in pending %}
+  <small class="copy-pending">⟳ {{ pending[row.id] }} requested, applied on next run</small>
+{% else %}
+<form method="post" action="{{ url_for('copy_status.make_request', file_id=row.id) }}" class="copy-actions">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <input type="hidden" name="next" value="{{ next_url }}">
+  {% if row.status in ('failed', 'locked') %}
+  <button type="submit" name="action" value="retry" title="Reset attempts and try again on the next run">Retry</button>
+  {% endif %}
+  {% if row.manual_ignore %}
+  <button type="submit" name="action" value="unignore">Stop ignoring</button>
+  {% elif row.status != 'copied' %}
+  <button type="submit" name="action" value="ignore" class="copy-secondary" title="Never copy this file">Ignore</button>
+  {% endif %}
+</form>
+{% endif %}
+{%- endmacro %}
+
+{% macro machines(items, selected) -%}
+<nav class="copy-tabs" aria-label="Instrument copy services">
+  {% for machine in items %}
+  <a class="copy-tab {% if machine.key == selected %}copy-tab-current{% endif %}"
+     href="{{ url_for('copy_status.overview', machine=machine.key) }}"
+     {% if machine.key == selected %}aria-current="page"{% endif %}>
+    {{ machine.label }}{% if not machine.available %} · unavailable{% endif %}
+  </a>
+  {% endfor %}
+</nav>
+<div role="status" aria-live="polite">
+  {% for machine in items if not machine.available %}
+  <p class="flash flash-error">{{ machine.label }}: copy database was not found or could not be read at
+    <code>{{ machine.path }}</code>. Check the PC, share access and copy service settings. Other instruments remain available.</p>
+  {% endfor %}
+</div>
+{%- endmacro %}

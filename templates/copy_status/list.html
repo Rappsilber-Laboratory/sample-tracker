@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% from "copy_status/_macros.html" import badge, size, heartbeat, request_buttons, machines %}
+{% block title %}Copy status{% endblock %}
+{% block content %}
+<div class="copy-page" id="copy-page" data-live-url="{{ url_for('copy_status.live') }}"
+     data-availability="{{ copy_machines|map(attribute='available')|list|tojson|forceescape }}" data-counts="{{ (counts or {})|tojson|forceescape }}">
+  <h2>Copy status · {{ copy_machine_label }}</h2>
+  {{ machines(copy_machines, copy_machine) }}
+  {{ heartbeat(service) }}
+
+  {% if missing %}
+  <p class="flash flash-error">The copy service's database was not found at <code>{{ db_path }}</code>.
+    It is created on the first run of <code>db_match/copy_raw_files.py</code>. Check that the path in
+    <code>app.py</code> (<code>COPY_MATCHING_DB_PATHS</code>) matches <code>MATCHING_DB_PATH</code> in the copy script.</p>
+  {% else %}
+
+  <nav class="copy-tabs" aria-label="Copy status views">
+    {% for key, label, hint in [
+      ('active', 'In progress', 'copying, waiting, file open, failed'),
+      ('copied', 'Copied', 'verified on the server'),
+      ('ignored', 'Ignored', 'not copied, with reason'),
+      ('all', 'All', '')] %}
+    <a href="{{ url_for('copy_status.overview', view=key) }}" class="copy-tab {% if view == key %}copy-tab-current{% endif %}"
+       {% if view == key %}aria-current="page"{% endif %} title="{{ hint }}">
+      {{ label }} <span class="copy-count">{{ counts.get(key, 0) }}</span></a>
+    {% endfor %}
+  </nav>
+
+  {% if view in ('active', 'all') %}
+  <div class="copy-chips">
+    {% for st in (['copying', 'waiting', 'locked', 'failed'] if view == 'active' else ['copying', 'waiting', 'locked', 'failed', 'copied', 'ignored']) %}
+    <a href="{{ url_for('copy_status.overview', view=view, status='' if status_filter == st else st, q=q) }}"
+       class="copy-chip {% if status_filter == st %}copy-chip-on{% endif %}">{{ badge(st) }} {{ counts.get(st, 0) }}</a>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <form method="get" class="copy-search">
+    <input type="hidden" name="machine" value="{{ copy_machine }}">
+    <input type="hidden" name="view" value="{{ view }}">
+    <input type="hidden" name="status" value="{{ status_filter }}">
+    <input type="search" name="q" value="{{ q }}" placeholder="File name, project or experiment code" aria-label="Search">
+    <button type="submit">Search</button>
+    {% if q %}<a href="{{ url_for('copy_status.overview', view=view, status=status_filter) }}">Clear</a>{% endif %}
+  </form>
+
+  <p class="field-hint">{{ matched }} file{{ '' if matched == 1 else 's' }} · Page {{ page }} of {{ pages }}</p>
+  <div class="legacy-table-wrap">
+    <table class="copy-table">
+      <thead><tr>
+        <th>Date</th><th>File</th><th>Location</th><th>Project</th><th>Experiment</th>
+        <th>Size</th><th>Contact</th><th>Status</th><th></th>
+      </tr></thead>
+      <tbody>
+      {% for row in rows %}
+        <tr class="copy-row-{{ row.status }}" data-file-id="{{ row.id }}">
+          <td class="copy-nowrap">{{ row.acq_date or '—' }}</td>
+          <td><a href="{{ url_for('copy_status.detail', file_id=row.id) }}"><strong>{{ row.file_name }}</strong></a></td>
+          <td class="copy-location">
+            <small title="On the instrument PC">⌂ {{ row.renamed_path or row.source_path }}</small>
+            {% if row.destination_path %}<small title="On the server">→ {{ row.destination_path }}</small>{% endif %}
+          </td>
+          <td>{% if row.project_code %}<a href="{{ url_for('project_detail', code=row.project_code) }}">{{ row.project_code }}</a>{% else %}—{% endif %}</td>
+          <td>{% if row.project_code and row.experiment_code and row.contact is not none %}
+                <a href="{{ url_for('experiment_detail', project_code=row.project_code, code=row.experiment_code) }}">{{ row.experiment_code }}</a>
+              {% else %}{{ row.experiment_code or '—' }}{% endif %}</td>
+          <td class="copy-nowrap">{{ size(row.size_bytes) }}</td>
+          <td>{% if row.contact %}{{ users.get(row.contact, row.contact) }}{% else %}—{% endif %}</td>
+          <td>
+            {{ badge(row.status) }}
+            {% if row.status == 'copying' and service.current and service.current.file_id == row.id %}
+            <div class="copy-progress copy-progress-small"><div class="copy-progress-bar" data-live-bar style="width: {{ service.current.percent }}%"></div></div>
+            {% endif %}
+            {% if row.status == 'failed' %}<small>attempt {{ row.attempts }}</small>{% endif %}
+            <small class="copy-message">{{ row.message or '' }}</small>
+          </td>
+          <td>{{ request_buttons(row, pending, request.full_path) }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="9">No files here.</td></tr>
+      {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <nav aria-label="Pages">
+    {% if page > 1 %}<a href="{{ page_url(page - 1) }}">← Previous</a>{% endif %}
+    <span>Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a href="{{ page_url(page + 1) }}">Next →</a>{% endif %}
+  </nav>
+  <p class="field-hint">Rules: only <code>.raw</code> files ≥ 300 MB, unchanged for 15 minutes, not open in another program,
+    and whose project and experiment codes exist here are copied. After a verified copy (SHA-256), the file on the
+    instrument PC is renamed to <code>C_…</code>. This page refreshes itself while the copy service works.</p>
+  {% endif %}
+</div>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/copy-status.js') }}" defer></script>{% endblock %}
