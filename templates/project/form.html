@@ -13,7 +13,7 @@
   {% if project %}
   <p><strong>Code:</strong> {{ project.code }}</p>
   {% else %}
-  <p>{{ render_field(form.code) }}
+  <p>{{ render_field(form.code, **{"data-code-check-url": url_for("code_taken", kind="project"), "data-code-check-label": "Project code"}) }}
     <small class="field-warning">⚠ The code cannot be changed after creation.</small>
   </p>
   {% endif %}
@@ -29,4 +29,7 @@
     <a href="{{ url_for('project_list') }}">Cancel</a>
   {% endif %}
 </form>
+{% endblock %}
+{% block scripts %}
+{% if not project %}<script src="{{ url_for('static', filename='js/code-check.js') }}" defer></script>{% endif %}
 {% endblock %}

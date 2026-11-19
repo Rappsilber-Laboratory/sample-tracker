@@ -50,6 +50,7 @@ CREATE TABLE experiment (
     well_start TEXT NOT NULL DEFAULT 'A1',
     well_in_filename INTEGER NOT NULL DEFAULT 0,
     well_in_position INTEGER NOT NULL DEFAULT 0,
+    well_trays TEXT NOT NULL DEFAULT 'Y',
 
     -- Invariant conditions defined on the experiment.
     disease TEXT,

@@ -5,20 +5,20 @@
 <p>
   <a href="{{ url_for('project_create') }}" role="button">New Project</a>
   {% if show_archived %}
-    <a href="{{ url_for('project_list') }}">Hide archived</a>
+    <a href="{{ url_for('project_list') }}" class="archive-toggle">Hide archived</a>
   {% else %}
-    <a href="{{ url_for('project_list', show_archived=1) }}">Show archived</a>
+    <a href="{{ url_for('project_list', show_archived=1) }}" class="archive-toggle">Show archived</a>
   {% endif %}
 </p>
 <table>
   <thead>
     <tr>
       <th>Code</th>
-      <th>Name</th>
+      <th>Project Name</th>
       <th>Description</th>
       <th>Experiments</th>
       <th>Files</th>
-      <th>Active</th>
+      <th>Active <small>(inactive projects are hidden)</small></th>
       <th>Contact</th>
     </tr>
   </thead>

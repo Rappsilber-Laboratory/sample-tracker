@@ -9,7 +9,7 @@
 </p>
 <table>
   <tbody>
-    <tr><th>Name</th><td>{{ virus.name }}</td></tr>
+    <tr><th>Virus Name</th><td>{{ virus.name }}</td></tr>
     {% if virus.variant %}<tr><th>Variant</th><td>{{ virus.variant }}</td></tr>{% endif %}
     {% if virus.species %}<tr><th>Species</th><td><a href="{{ url_for('species_detail', id=virus.species.id) }}">{{ virus.species.species_name }}</a></td></tr>{% endif %}
   </tbody>

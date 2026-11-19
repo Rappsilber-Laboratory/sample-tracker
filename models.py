@@ -68,6 +68,9 @@ class Experiment(db.Model):
     well_start = db.Column(db.Text, nullable=False, default="A1")
     well_in_filename = db.Column(db.Boolean, nullable=False, default=False)
     well_in_position = db.Column(db.Boolean, nullable=False, default=False)
+    # Autosampler tray letter(s) for the Position column, comma-separated in plate
+    # order (plate 1 uses the first, plate 2 the second...), e.g. "R,Y".
+    well_trays = db.Column(db.Text, nullable=False, default="Y")
 
     # Invariant conditions defined on the experiment.
     disease = db.Column(db.Text)

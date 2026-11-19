@@ -9,9 +9,9 @@
 </p>
 <table>
   <tbody>
-    <tr><th>Name</th><td>{{ user.name }}</td></tr>
+    <tr><th>Full Name</th><td>{{ user.name }}</td></tr>
     <tr><th>Initials</th><td>{{ user.initials }}</td></tr>
-    <tr><th>Active</th><td>{{ 'Yes' if user.active else 'No' }}</td></tr>
+    <tr><th>Active <small>(inactive users are not offered in selection lists)</small></th><td>{{ 'Yes' if user.active else 'No' }}</td></tr>
   </tbody>
 </table>
 {% endblock %}

@@ -151,6 +151,8 @@
       <span>{{ form.well_enable() }} {{ form.well_enable.label }}</span>
       <span>{{ form.well_order.label }} {{ form.well_order() }}</span>
       <span>{{ form.well_start.label }} {{ form.well_start(size="4", style="width:4rem") }}</span>
+      <span>{{ form.well_tray.label }} {{ form.well_tray() }}</span>
+      <span id="well-extra-trays" class="well-extra-trays" data-trays="{{ experiment.well_trays or 'Y' }}"></span>
       <span>{{ form.well_in_filename() }} {{ form.well_in_filename.label }}</span>
       <span>{{ form.well_in_position() }} {{ form.well_in_position.label }}</span>
     </fieldset>

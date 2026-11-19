@@ -15,6 +15,7 @@ QUEUE_COLUMNS = (
     "well_start",
     "well_in_filename",
     "well_in_position",
+    "well_trays",
 )
 
 

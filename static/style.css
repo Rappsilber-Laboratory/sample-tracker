@@ -416,3 +416,11 @@ input.field-wide { width: 100%; max-width: 32rem; }
 .copy-history { list-style: none; padding: 0; }
 .copy-history li { padding: 0.3rem 0; border-bottom: 1px solid var(--accent-bg); }
 .copy-history time { color: var(--text-light); font-size: 0.85em; margin-right: 0.5rem; }
+
+/* Keep the archived toggle visibly separate from the "New …" button beside it. */
+.archive-toggle {
+  margin-left: 2.5rem;
+  padding-left: 1rem;
+  border-left: 1px solid var(--border);
+}
+.vc-position { display: inline-block; min-width: 3.5rem; font-weight: bold; }

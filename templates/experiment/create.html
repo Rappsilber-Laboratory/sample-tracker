@@ -8,7 +8,7 @@
 <form method="post">
   {{ form.hidden_tag() }}
   <p><strong>Project:</strong> {{ project.code }} — {{ project.name }}</p>
-  <p>{{ render_field(form.code) }}
+  <p>{{ render_field(form.code, **{"data-code-check-url": url_for("code_taken", kind="experiment", project_code=project.code), "data-code-check-label": "Experiment code"}) }}
     <small class="field-warning">⚠ The code cannot be changed after creation.</small>
   </p>
 
@@ -36,6 +36,9 @@
   </div>
   <small class="field-hint">Everything else is filled in on the next page, which saves
     automatically as you type. "Base on existing" copies the chosen experiment's values (except
-    Code and Name), including its variable and invariant conditions.</small>
+    Code and Experiment Name), including its variable and invariant conditions.</small>
 </form>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/code-check.js') }}" defer></script>
 {% endblock %}

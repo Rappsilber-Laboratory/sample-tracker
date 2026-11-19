@@ -148,6 +148,64 @@ class FileSearchTests(unittest.TestCase):
             ',"Species: Homo sapiens, Mus musculus; Crosslinker: DSSO; Quenching: Tris"'
         ))
 
+    def positions(self, response):
+        rows = response.data.decode("utf-8-sig").splitlines()[2:]
+        return [row.split(",")[3] for row in rows]
+
+    def test_position_column_has_tray_prefix(self):
+        response = self.generate(
+            well_enable="y", well_start="b3", well_in_position="y", well_in_filename="y",
+            well_tray="R",
+        )
+        self.assertEqual(self.positions(response), ["R:B3", "R:B4"])
+        # The filename keeps only the well (a colon is not allowed in Windows names).
+        self.assertIn("MS_20261019-001_P1_AB_E1_dose1_B3,", response.data.decode("utf-8-sig"))
+        db.session.expire_all()
+        self.assertEqual(db.session.get(Experiment, ("P1", "E1")).well_trays, "R")
+
+    def test_overflowing_runs_need_a_second_tray(self):
+        overflow = dict(
+            well_enable="y", well_start="H12", well_in_position="y", well_tray="R",
+        )
+        response = self.generate(**overflow)
+        self.assertEqual(response.status_code, 302)
+        response = self.client.get(response.location)
+        self.assertIn("choose the second tray position", response.data.decode())
+
+        response = self.generate(well_extra_tray="R", **overflow)
+        response = self.client.get(response.location)
+        self.assertIn("must be a different colour", response.data.decode())
+
+        response = self.generate(well_extra_tray="Y", **overflow)
+        self.assertEqual(response.mimetype, "text/csv")
+        self.assertEqual(self.positions(response), ["R:H12", "Y:A1"])
+        db.session.expire_all()
+        self.assertEqual(db.session.get(Experiment, ("P1", "E1")).well_trays, "R,Y")
+        page = self.client.get("/projects/P1/experiments/E1").data.decode()
+        self.assertIn('data-trays="R,Y"', page)
+
+    def test_too_many_trays(self):
+        response = self.generate(
+            varying_conditions='[{"prefix":"d","values":"1-400","postfix":""}]',
+            well_enable="y", well_in_position="y", well_tray="Y",
+            well_extra_tray=["B", "G", "R"],
+        )
+        response = self.client.get(response.location)
+        self.assertIn("has only 4", response.data.decode())
+
+    def test_code_taken_api(self):
+        def taken(**params):
+            return self.client.get("/api/code-taken", query_string=params).get_json()["taken"]
+        self.assertTrue(taken(kind="project", code="P1"))
+        self.assertFalse(taken(kind="project", code="P9"))
+        self.assertTrue(taken(kind="experiment", project_code="P1", code="E1"))
+        self.assertFalse(taken(kind="experiment", project_code="P1", code="E2"))
+        self.assertFalse(taken(kind="project", code=""))
+        self.assertEqual(
+            self.client.get("/api/code-taken", query_string={"kind": "x", "code": "a"}).status_code,
+            400,
+        )
+
     def test_exact_local_filename_lookup(self):
         db.session.add_all([
             AcquiredFile(filename="sample.raw", project_code="P1", experiment_code="E1"),

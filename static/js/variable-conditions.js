@@ -22,6 +22,8 @@
   const wellStart = document.getElementById('well_start');
   const wellInFilename = document.getElementById('well_in_filename');
   const wellInPosition = document.getElementById('well_in_position');
+  const wellTray = document.getElementById('well_tray');
+  const extraTraysBox = document.getElementById('well-extra-trays');
   const form = table.closest('form');
   const generateBtn = form && form.querySelector('button[name="action"][value="generate"]');
   let initializing = true;
@@ -41,6 +43,68 @@
       for (const r of WELL_ROWS) for (let c = 1; c <= 12; c++) wells.push(r + c);
     }
     return wells;
+  }
+
+  // ---- autosampler trays (mirror of _TRAYS in app.py) ----
+  // One tray per 96-well plate: the "Tray position" select is plate 1; when the
+  // runs spill onto more plates, extra "Second/Third/Fourth tray" selects
+  // (name="well_extra_tray") appear so each plate's tray can be chosen.
+  const TRAYS = ['Y', 'B', 'G', 'R'];
+  const TRAY_ORDINALS = ['First', 'Second', 'Third', 'Fourth'];
+  // Saved extra trays (everything after the first) seed the selects on load.
+  let savedExtraTrays = ((extraTraysBox && extraTraysBox.dataset.trays) || '')
+    .split(',').map((t) => t.trim().toUpperCase()).filter((t) => TRAYS.includes(t)).slice(1);
+
+  function extraTraySelects() {
+    return extraTraysBox ? Array.from(extraTraysBox.querySelectorAll('select')) : [];
+  }
+
+  function currentTrays() {
+    return [wellTray ? wellTray.value : TRAYS[0]].concat(extraTraySelects().map((s) => s.value));
+  }
+
+  // Show exactly (plates - 1) extra tray selects, keeping chosen values; a new
+  // select defaults to the saved value, else the first tray not already used.
+  function syncExtraTrays(plates) {
+    if (!extraTraysBox) return;
+    const want = Math.max(0, Math.min(plates, TRAYS.length) - 1);
+    let selects = extraTraySelects();
+    if (selects.length === want) return;
+    while (selects.length > want) {
+      selects.pop().parentNode.remove();
+    }
+    while (selects.length < want) {
+      const n = selects.length + 1; // 1 = second tray
+      const used = currentTrays();
+      const initial = savedExtraTrays[n - 1] || TRAYS.find((t) => !used.includes(t)) || TRAYS[0];
+      const id = 'well_extra_tray_' + (n + 1);
+      const span = document.createElement('span');
+      const label = document.createElement('label');
+      label.htmlFor = id;
+      label.textContent = TRAY_ORDINALS[n] + ' tray';
+      const sel = document.createElement('select');
+      sel.id = id;
+      sel.name = 'well_extra_tray';
+      TRAYS.forEach(function (t) {
+        const opt = document.createElement('option');
+        opt.value = t;
+        opt.textContent = t;
+        if (t === initial) opt.selected = true;
+        sel.appendChild(opt);
+      });
+      sel.addEventListener('change', function () {
+        savedExtraTrays[n - 1] = sel.value;
+        changed();
+      });
+      span.appendChild(label);
+      span.appendChild(document.createTextNode(' '));
+      span.appendChild(sel);
+      extraTraysBox.appendChild(span);
+      selects = extraTraySelects();
+    }
+    // Remember shown values so hiding and re-showing a select keeps its choice.
+    extraTraySelects().forEach(function (s, i) { savedExtraTrays[i] = s.value; });
+    syncWellControls();
   }
 
   function validateWell(s) {
@@ -216,28 +280,39 @@
       }
     })(0, []);
 
-    // Well-plate suffix (only affects the filename preview when both the master
-    // switch and "add well to filename" are on).
-    const wellOn = wellEnable && wellEnable.checked && wellInFilename && wellInFilename.checked;
-    let wells = null, startIdx = 0, includePlate = false;
-    if (wellOn) {
+    // Well-plate assignment: the filename suffix needs the master switch and
+    // "add well to filename"; the tray:well position needs "put well in Position".
+    const wellsOn = !!(wellEnable && wellEnable.checked);
+    const wellInName = wellsOn && wellInFilename && wellInFilename.checked;
+    const wellInPos = wellsOn && wellInPosition && wellInPosition.checked;
+    let wells = null, startIdx = 0, includePlate = false, plates = 1;
+    if (wellsOn) {
       wells = makeWellOrder(wellOrder ? wellOrder.value : 'rowwise');
       const startWell = validateWell(wellStart ? wellStart.value : 'A1') || 'A1';
       startIdx = wells.indexOf(startWell);
-      includePlate = (Math.floor((startIdx + total - 1) / 96) + 1) > 1;
+      plates = Math.floor((startIdx + total - 1) / 96) + 1;
+      includePlate = plates > 1;
     }
+    syncExtraTrays(wellInPos ? plates : 1);
+    const trays = currentTrays();
 
+    const positions = [];
     const lines = combos.map((combo, idx) => {
       const nnn = pad3(runStart + idx);
       const base = inst + '_' + ymd + '-' + nnn + '_' + proj + '_' + user + '_' + exp;
       const segs = combo.map((v, j) => (active[j].prefix || '') + v + (active[j].postfix || ''));
-      if (wellOn) {
+      let position = '';
+      if (wellsOn) {
         const abs = startIdx + idx;
         const plate = Math.floor(abs / 96) + 1;
         const wname = wells[abs % 96];
-        if (includePlate) segs.push('Plate' + plate);
-        segs.push(wname);
+        if (wellInName) {
+          if (includePlate) segs.push('Plate' + plate);
+          segs.push(wname);
+        }
+        if (wellInPos) position = (trays[plate - 1] || '?') + ':' + wname;
       }
+      positions.push(position);
       return [base].concat(segs).join('_');
     });
 
@@ -255,9 +330,16 @@
         (longCount === 1 ? '' : 's') + ' exceed ' + MAX_FILENAME_LEN +
         ' characters — shorten the codes, prefixes or postfixes before generating.</p>';
     }
-    html += '<ul class="vc-preview-list">' + lines.map((l) => {
+    if (wellInPos && plates > TRAYS.length) {
+      html += '<p class="vc-warning">⚠ These runs need ' + plates + ' trays of 96 wells, but the ' +
+        'autosampler has only ' + TRAYS.length + ' (' + TRAYS.join(', ') + ').</p>';
+    } else if (wellInPos && new Set(trays).size !== trays.length) {
+      html += '<p class="vc-warning">⚠ Each tray position must be a different colour.</p>';
+    }
+    html += '<ul class="vc-preview-list">' + lines.map((l, i) => {
       const cls = l.length > MAX_FILENAME_LEN ? ' class="vc-too-long"' : '';
-      return '<li' + cls + '>' + escapeHtml(l) + '</li>';
+      const pos = positions[i] ? '<span class="vc-position">' + escapeHtml(positions[i]) + '</span> ' : '';
+      return '<li' + cls + '>' + pos + escapeHtml(l) + '</li>';
     }).join('') + '</ul>';
     preview.innerHTML = html;
   }
@@ -268,17 +350,23 @@
     [wellOrder, wellStart, wellInFilename, wellInPosition].forEach(function (el) {
       if (el) el.disabled = !on;
     });
+    // Trays only matter for the Position column.
+    const trayOn = on && wellInPosition && wellInPosition.checked;
+    [wellTray].concat(extraTraySelects()).forEach(function (el) {
+      if (el) el.disabled = !trayOn;
+    });
   }
 
   // ---- init ----
   addBtn.addEventListener('click', function () { addRow(); changed(); });
   [genInstrument, genUser, genDate, genRunStart, codeInput,
-   wellEnable, wellOrder, wellStart, wellInFilename, wellInPosition].forEach(function (el) {
+   wellEnable, wellOrder, wellStart, wellInFilename, wellInPosition, wellTray].forEach(function (el) {
     if (!el) return;
     el.addEventListener('input', changed);
     el.addEventListener('change', changed);
   });
   if (wellEnable) wellEnable.addEventListener('change', syncWellControls);
+  if (wellInPosition) wellInPosition.addEventListener('change', syncWellControls);
   syncWellControls();
 
   // Enter in a field must not submit the form (autosave persists everything;

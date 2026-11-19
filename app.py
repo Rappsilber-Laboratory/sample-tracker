@@ -110,6 +110,7 @@ def _upgrade_experiment_queue_columns(engine):
         "well_start": "TEXT NOT NULL DEFAULT 'A1'",
         "well_in_filename": "INTEGER NOT NULL DEFAULT 0",
         "well_in_position": "INTEGER NOT NULL DEFAULT 0",
+        "well_trays": "TEXT NOT NULL DEFAULT 'Y'",
     }
     with engine.begin() as connection:
         existing = {
@@ -583,6 +584,28 @@ def project_detail(code):
     )
 
 
+@app.route("/api/code-taken")
+def code_taken():
+    """Live duplicate check for the create forms (static/js/code-check.js).
+
+    ``kind`` is ``project`` or ``experiment`` (the latter also needs
+    ``project_code``, since experiment codes are unique only within a project).
+    Returns ``{"taken": bool}``; the real guard is still ``_commit_unique`` on save.
+    """
+    kind = request.args.get("kind", "")
+    code = (request.args.get("code") or "").strip()
+    if not code:
+        return jsonify({"taken": False})
+    if kind == "project":
+        taken = db.session.get(Project, code) is not None
+    elif kind == "experiment":
+        project_code = (request.args.get("project_code") or "").strip()
+        taken = db.session.get(Experiment, (project_code, code)) is not None
+    else:
+        abort(400, description="kind must be 'project' or 'experiment'.")
+    return jsonify({"taken": taken})
+
+
 @app.route("/projects/new", methods=["GET", "POST"])
 def project_create():
     form = ProjectForm()
@@ -681,6 +704,7 @@ def experiment_detail(project_code, code):
         form.cellosaurus_ids.data = [cl.cellosaurus_id for cl in experiment.cell_lines]
         form.varying_conditions.data = json.dumps(experiment.varying_conditions or [])
         form.gen_instrument.data = experiment.instrument_initial or ""
+        form.well_tray.data = _parse_trays(experiment.well_trays)[0]
         if experiment.user_initials:
             form.gen_user.data = experiment.user_initials
         form.gen_date.data = date.today().isoformat()
@@ -751,6 +775,10 @@ def _apply_experiment_conditions(form, experiment, discriminator):
     experiment.well_start = (
         _validate_well(form.well_start.data) or (form.well_start.data or "").strip() or "A1"
     )
+    # The tray selects are disabled (so not submitted) unless the well goes in the
+    # Position column; keep the stored trays rather than resetting them then.
+    if "well_tray" in request.form:
+        experiment.well_trays = ",".join(_submitted_trays(form))
     _coerce_select_fields(experiment)
     _nullify_crosslink_fields(experiment)
     with db.session.no_autoflush:
@@ -1251,15 +1279,39 @@ def _validate_well(well):
     return f"{row}{int(col_text)}"
 
 
+# Autosampler tray letters, in the order offered for successive plates.
+_TRAYS = ["Y", "B", "G", "R"]
+_TRAY_ORDINALS = ["First", "Second", "Third", "Fourth"]
+
+
+def _parse_trays(text):
+    """'R, y,X' -> ['R', 'Y'] (unknown letters dropped); never empty."""
+    trays = [t.strip().upper() for t in (text or "").split(",")]
+    trays = [t for t in trays if t in _TRAYS]
+    return trays or [_TRAYS[0]]
+
+
+def _submitted_trays(form):
+    """Tray letters from the form: the first-tray select plus any extra
+    well_extra_tray selects (one per additional plate), in plate order."""
+    first = (form.well_tray.data or "").strip().upper()
+    extras = [(t or "").strip().upper() for t in request.form.getlist("well_extra_tray")]
+    trays = [first if first in _TRAYS else _TRAYS[0]]
+    trays += [t for t in extras if t in _TRAYS]
+    return trays
+
+
 def _generate_runs(conditions, inst, ymd, proj, user, exp, run_start, well=None):
     """Build the combinatorial run list.
 
     Returns (rows, error). rows is a list of {run_number, filename, values,
     position}; the Cartesian product is taken in row order (last row varies
     fastest, matching sequencer.py). ``well`` is the optional plate config
-    {enable, order, start, in_filename, in_position}: runs are placed into
+    {enable, order, start, in_filename, in_position, trays}: runs are placed into
     96-well positions from ``start`` in ``order``, wrapping onto a new plate every
-    96; the plate number is only added when the run set spans more than one plate.
+    96. In the filename the plate number is only added when the run set spans more
+    than one plate; the Position column is ``tray:well`` (e.g. ``R:H10``), where
+    plate n sits in ``trays[n-1]`` (one autosampler tray per plate).
     error is a message string if generation can't proceed.
     """
     value_lists = [_parse_condition_values(c.get("values", "")) for c in conditions]
@@ -1283,7 +1335,23 @@ def _generate_runs(conditions, inst, ymd, proj, user, exp, run_start, well=None)
         if start_well is None:
             return [], "Invalid well start position — use e.g. A1, B3, H12."
         start_index = wells.index(start_well)
-        include_plate = ((start_index + total - 1) // 96 + 1) > 1
+        plates_needed = (start_index + total - 1) // 96 + 1
+        include_plate = plates_needed > 1
+        trays = list(well.get("trays") or [_TRAYS[0]])
+        if well.get("in_position"):
+            if plates_needed > len(_TRAYS):
+                return [], (
+                    f"That needs {plates_needed} trays of 96 wells, but the autosampler "
+                    f"has only {len(_TRAYS)} ({', '.join(_TRAYS)}). Narrow the conditions."
+                )
+            if len(trays) < plates_needed:
+                return [], (
+                    f"The runs fill {plates_needed} trays — choose the "
+                    f"{_TRAY_ORDINALS[len(trays)].lower()} tray position."
+                )
+            trays = trays[:plates_needed]
+            if len(set(trays)) != len(trays):
+                return [], "Each tray position must be a different colour."
 
     rows = []
     for i, combo in enumerate(itertools.product(*value_lists)):
@@ -1303,7 +1371,7 @@ def _generate_runs(conditions, inst, ymd, proj, user, exp, run_start, well=None)
                     segments.append(f"Plate{plate}")
                 segments.append(wname)
             if well.get("in_position"):
-                position = f"{plate}:{wname}" if include_plate else wname
+                position = f"{trays[plate - 1]}:{wname}"
         rows.append({
             "run_number": nnn,
             "filename": "_".join([base] + segments),
@@ -1407,6 +1475,7 @@ def _generate_csv_or_none(form, experiment):
         "start": form.well_start.data,
         "in_filename": bool(form.well_in_filename.data),
         "in_position": bool(form.well_in_position.data),
+        "trays": _submitted_trays(form),
     }
     conditions = experiment.varying_conditions or []
     rows, error = _generate_runs(

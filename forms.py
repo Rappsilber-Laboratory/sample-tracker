@@ -54,10 +54,10 @@ class ProjectForm(FlaskForm):
     code = StringField(
         "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
     )
-    name = StringField("Name", validators=[DataRequired()])
+    name = StringField("Project Name", validators=[DataRequired()])
     description = TextAreaField("Description", validators=[DataRequired()])
     user_initials = SelectField("Contact Person", validators=[DataRequired()], coerce=str)
-    active = BooleanField("Active", default=True)
+    active = BooleanField("Active (inactive projects are hidden from lists)", default=True)
 
 
 class ExperimentForm(FlaskForm):
@@ -65,10 +65,10 @@ class ExperimentForm(FlaskForm):
     code = StringField(
         "Code", validators=[DataRequired(), valid_code], render_kw=CODE_RENDER_KW
     )
-    name = StringField("Name", validators=[Optional()])
+    name = StringField("Experiment Name", validators=[Optional()])
     description = TextAreaField("Description", validators=[Optional()])
     user_initials = SelectField("Contact Person", validators=[Optional()], coerce=str)
-    active = BooleanField("Active", default=True)
+    active = BooleanField("Active (inactive experiments are hidden from lists)", default=True)
 
     # Invariant conditions defined on the experiment.
     disease = StringField("Disease", validators=[Optional()])
@@ -183,6 +183,15 @@ class ExperimentForm(FlaskForm):
         validators=[Optional()],
     )
     well_start = StringField("Start position", default="A1", validators=[Optional()])
+    # First autosampler tray (prefixed to the Position column, e.g. "R:H10"). Further
+    # trays for runs spilling past one plate are extra <select name="well_extra_tray">
+    # controls added by variable-conditions.js; all are stored in experiment.well_trays.
+    well_tray = SelectField(
+        "Tray position",
+        choices=[("Y", "Y"), ("B", "B"), ("G", "G"), ("R", "R")],
+        default="Y",
+        validators=[Optional()],
+    )
     well_in_filename = BooleanField("Add well to end of filename")
     well_in_position = BooleanField("Put well in Position column")
 
@@ -199,7 +208,7 @@ class ExperimentCreateForm(FlaskForm):
 
 class InstrumentForm(FlaskForm):
     initial = StringField("Initial", validators=[DataRequired()])
-    name = StringField("Name", validators=[DataRequired()])
+    name = StringField("Instrument Name", validators=[DataRequired()])
     model = StringField("Model", validators=[Optional()])
 
 
@@ -209,7 +218,7 @@ class SpeciesForm(FlaskForm):
 
 
 class VirusForm(FlaskForm):
-    name = StringField("Name", validators=[DataRequired()])
+    name = StringField("Virus Name", validators=[DataRequired()])
     species_id = SelectField("Species", coerce=int, validators=[Optional()])
     variant = StringField("Variant", validators=[Optional()])
 
@@ -222,9 +231,9 @@ class CellLineForm(FlaskForm):
 
 
 class UserForm(FlaskForm):
-    name = StringField("Name", validators=[DataRequired()])
+    name = StringField("Full Name", validators=[DataRequired()])
     initials = StringField("Initials", validators=[DataRequired()])
-    active = BooleanField("Active", default=True)
+    active = BooleanField("Active (inactive users are not offered in selection lists)", default=True)
 
 
 class AcquiredFileForm(FlaskForm):
